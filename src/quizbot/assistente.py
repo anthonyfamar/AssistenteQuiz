@@ -6,7 +6,10 @@
 #                   3. manda para o Solver, que devolve a Suggestion;
 #                   4. entrega ao Presenter para mostrar.
 #                   Guarda a ultima questao para nao consultar a IA duas vezes.
-import time
+#                   Avisa o Presenter quando comeca a consultar a IA (para a tela nao
+#                   mostrar a resposta da questao anterior) e quando a consulta falha.
+#                   O laco para quando o Event "parar" e acionado.
+import threading
 
 from quizbot.models import Question
 from quizbot.page_reader import PageReader
@@ -21,11 +24,13 @@ class AssistenteQuiz:
         solver: Solver,
         presenter: Presenter,
         intervalo: float = 1.0,
+        parar: threading.Event | None = None,
     ) -> None:
         self._reader = reader
         self._solver = solver
         self._presenter = presenter
         self._intervalo = intervalo
+        self._parar = parar if parar is not None else threading.Event()
         self._ultima: Question | None = None
 
     def _passo(self) -> None:
@@ -37,14 +42,15 @@ class AssistenteQuiz:
             return
 
         self._ultima = questao
+        self._presenter.consultando()
         try:
             sugestao = self._solver.solve(questao)
         except SolverError as erro:
-            print(f"[aviso] Não consegui uma sugestão: {erro}")
+            self._presenter.avisar(f"Não consegui uma sugestão: {erro}")
             return
         self._presenter.mostrar(questao, sugestao)
 
     def rodar(self) -> None:
-        while True:
+        while not self._parar.is_set():
             self._passo()
-            time.sleep(self._intervalo)
+            self._parar.wait(self._intervalo)
