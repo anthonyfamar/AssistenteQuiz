@@ -125,18 +125,6 @@ $env:PYTHONPATH = "src"
 
 Em outro sistema operacional, só o caminho do Chrome (`CAMINHOS_CHROME`, no `config.py`) precisa mudar.
 
-## Testar com o quiz de demonstração
-
-A pasta `demo/` tem um quiz local (`quiz_local.html`) para testar sem depender de um site real. Ele tem tela de início e de fim, sem questão, onde o programa deve ficar quieto.
-
-1. No `src/quizbot/config.py`, troque os seletores para os do demo:
-   ```python
-   SELETOR_ENUNCIADO = "#enunciado"
-   SELETOR_ALTERNATIVAS = "#alternativas .alternativa"
-   ```
-2. Dê dois cliques em `iniciar.bat` e arraste o arquivo `demo/quiz_local.html` para a janela do Chrome que abrir.
-3. Clique em **Começar**. Nas telas de início e de fim, a janelinha fica em "Aguardando questão…".
-
 ## Adaptar a outro site
 
 Os seletores do site ficam em `src/quizbot/config.py`. O padrão atual serve para quizzes do **Moodle**.
@@ -163,13 +151,10 @@ AssistenteQuiz/
 │   ├── main.py            conecta ao Chrome e monta as peças
 │   └── solvers/
 │       ├── base.py        Solver (classe abstrata) e SolverError
-│       ├── fake.py        FakeSolver: resposta fixa, para testes
 │       ├── api.py         ApiSolver: um provedor de IA
 │       ├── fallback.py    FallbackSolver: tenta um, depois o próximo
 │       └── fabrica.py     monta os solvers a partir do .env
 ├── iniciar.bat            duplo clique: abre o Chrome e a janelinha
-├── demo/quiz_local.html   quiz de teste
-├── tests/                 testes (em andamento)
 ├── .env.example           modelo do .env
 └── requirements.txt
 ```
@@ -198,7 +183,6 @@ AssistenteQuiz/
 - [x] Quatro provedores de IA gratuitos, com troca automática
 - [x] Sugestão no terminal ou na janelinha
 - [x] Fórmulas (Wiris) lidas como texto e questões com imagem (modelo de visão)
-- [ ] Testes automatizados
 - [x] Janela flutuante (tkinter), sempre por cima
 
 ## Licença
