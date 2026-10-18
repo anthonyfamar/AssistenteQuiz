@@ -41,7 +41,7 @@ Este é um projeto **educacional**, feito para estudar Playwright, APIs de IA e 
 ```
 
 1. Você abre o seu Chrome com uma porta de depuração, faz login e navega no seu ritmo.
-2. O programa se conecta a esse Chrome e consulta a página a cada ~1 segundo, lendo o **texto** com seletores CSS. Não usa captura de tela.
+2. O programa se conecta a esse Chrome e consulta a página a cada ~1 segundo, lendo o texto com seletores CSS. As fórmulas (imagens do Wiris) viram texto, e as imagens de verdade (gráficos, figuras) são baixadas e enviadas a uma IA que enxerga. Não tira print da tela.
 3. Se o enunciado é diferente do último lido, é uma questão nova. A anterior fica guardada para não gastar a cota da IA com a mesma questão.
 4. A questão vai para o `Solver`, que consulta a IA e devolve a sugestão.
 5. Se a página não tiver questão (login, menu), os seletores não acham nada e o programa fica quieto.
@@ -85,6 +85,8 @@ Todos têm plano gratuito e usam a API no formato compatível com OpenAI, então
 | Ollama Cloud | [ollama.com/settings/keys](https://ollama.com/settings/keys) | `OLLAMA_API_KEY`, `OLLAMA_CLOUD_MODEL` |
 
 `ORDEM_PROVEDORES` define a ordem de tentativa, por exemplo `gemini,groq,openrouter,ollama-cloud`. Se um provedor falhar (cota, erro, formato errado), o programa passa para o próximo e deixa o que falhou **em pausa por 60 segundos**.
+
+**Questões com imagem:** cada provedor tem uma variável `..._MODEL_VISAO` (por exemplo `GEMINI_MODEL_VISAO`) com o nome de um modelo **que enxerga**. Questão com imagem só é tentada nos provedores que a têm preenchida, e os que não têm continuam respondendo as questões só de texto. Imagem gasta mais da cota gratuita que texto, então só é enviada quando existe. Fórmulas **não** contam como imagem: viram texto.
 
 **Para não gastar nada:**
 - Gemini: não ative faturamento no projeto.
@@ -149,9 +151,11 @@ Os seletores do site ficam em `src/quizbot/config.py`. O padrão atual serve par
 ```
 AssistenteQuiz/
 ├── src/quizbot/
-│   ├── models.py          Question e Suggestion (dataclasses imutáveis)
+│   ├── models.py          Question, Imagem e Suggestion (dataclasses imutáveis)
 │   ├── config.py          seletores CSS, intervalo, provedores de IA
 │   ├── page_reader.py     SÓ LEITURA: lê a questão de todas as abas e iframes
+│   ├── html_texto.py      HTML da questão → texto (fórmulas e marcadores de imagem)
+│   ├── formulas.py        MathML → texto linear (x^2, (a)/(b), sqrt(x))
 │   ├── presenter.py       contrato Presenter e TerminalPresenter
 │   ├── janela.py          JanelaPresenter: a janelinha (tkinter)
 │   ├── chrome.py          abre o Chrome do assistente com a porta de depuração
@@ -181,7 +185,9 @@ AssistenteQuiz/
 
 ## Limitações
 
-- Lê só **texto**. Questão que depende de imagem, fórmula ou tabela chega incompleta à IA.
+- As fórmulas são lidas pelo MathML do **Wiris**. Outros formatos de fórmula (MathJax, LaTeX) ainda não têm tratamento próprio.
+- Questão **com imagem** só é respondida se algum provedor tiver modelo de visão. Se nenhum tiver, ou se a imagem não puder ser baixada, a janelinha avisa em vez de adivinhar.
+- Tabelas e figuras muito detalhadas podem ser mal interpretadas pela IA, mesmo vendo a imagem.
 - Só lê quando há **exatamente uma questão** na tela. Com várias na mesma página, o programa fica quieto em vez de misturar alternativas.
 - A sugestão da IA pode estar **errada**. Quem decide é você.
 - As cotas gratuitas são limitadas. Se todos os provedores estiverem esgotados, o programa avisa e tenta de novo na próxima questão.
@@ -191,6 +197,7 @@ AssistenteQuiz/
 - [x] Leitura da página (Playwright, só leitura)
 - [x] Quatro provedores de IA gratuitos, com troca automática
 - [x] Sugestão no terminal ou na janelinha
+- [x] Fórmulas (Wiris) lidas como texto e questões com imagem (modelo de visão)
 - [ ] Testes automatizados
 - [x] Janela flutuante (tkinter), sempre por cima
 
