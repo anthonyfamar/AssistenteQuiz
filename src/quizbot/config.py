@@ -40,27 +40,36 @@ class Provedor:
     base_url: str
     chave_env: str
     modelo_env: str
+    modelo_visao_env: str
     so_free: bool = False
+    max_imagens: int = 5
 
 
+# modelo_visao_env = modelo usado nas questoes COM imagem (precisa enxergar). Se ficar
+# vazio no .env, o provedor so e usado em questoes sem imagem.
+# max_imagens = limite de imagens por pedido que o provedor aceita.
 PROVEDORES = {
     "gemini": Provedor(
         "gemini",
         "https://generativelanguage.googleapis.com/v1beta/openai/",
         "GEMINI_API_KEY",
         "GEMINI_MODEL",
+        "GEMINI_MODEL_VISAO",
     ),
     "groq": Provedor(
         "groq",
         "https://api.groq.com/openai/v1",
         "GROQ_API_KEY",
         "GROQ_MODEL",
+        "GROQ_MODEL_VISAO",
+        max_imagens=3,
     ),
     "openrouter": Provedor(
         "openrouter",
         "https://openrouter.ai/api/v1",
         "OPENROUTER_API_KEY",
         "OPENROUTER_MODEL",
+        "OPENROUTER_MODEL_VISAO",
         so_free=True,
     ),
     "ollama-cloud": Provedor(
@@ -68,9 +77,11 @@ PROVEDORES = {
         "https://ollama.com/v1",
         "OLLAMA_API_KEY",
         "OLLAMA_CLOUD_MODEL",
+        "OLLAMA_CLOUD_MODEL_VISAO",
     ),
 }
 
 ORDEM_PADRAO = "gemini,groq,openrouter,ollama-cloud"
-TIMEOUT_API = 20.0
+MAX_BYTES_IMAGEM = 4 * 1024 * 1024
+TIMEOUT_API = 30.0
 COOLDOWN_PROVEDOR = 60.0
