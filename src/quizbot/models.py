@@ -4,7 +4,8 @@
 #               E um dataclass imutavel (frozen), entao nao muda depois de criado.
 #               O __eq__ gerado e como o assistente percebe que a questao mudou.
 # Suggestion -> guarda a resposta sugerida pela IA: o indice da alternativa
-#               + uma explicacao curta.
+#               + uma explicacao curta + a origem (nome do provedor que
+#               respondeu; vazio quando nao se aplica, como no FakeSolver).
 from dataclasses import dataclass
 
 @dataclass(frozen=True)
@@ -16,3 +17,4 @@ class Question:
 class Suggestion:
     indice: int
     explicacao: str
+    origem: str = ""
