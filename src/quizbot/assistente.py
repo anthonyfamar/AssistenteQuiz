@@ -11,7 +11,7 @@ import time
 from quizbot.models import Question
 from quizbot.page_reader import PageReader
 from quizbot.presenter import Presenter
-from quizbot.solver import Solver
+from quizbot.solvers import Solver, SolverError
 
 
 class AssistenteQuiz:
@@ -39,7 +39,7 @@ class AssistenteQuiz:
         self._ultima = questao
         try:
             sugestao = self._solver.solve(questao)
-        except Exception as erro:
+        except SolverError as erro:
             print(f"[aviso] Não consegui uma sugestão: {erro}")
             return
         self._presenter.mostrar(questao, sugestao)
