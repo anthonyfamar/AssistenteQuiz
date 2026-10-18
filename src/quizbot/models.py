@@ -10,7 +10,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class Question:
     enunciado: str
-    alternativas: tuple[str, str, str, str, str]
+    alternativas: tuple[str, ...]
 
 @dataclass(frozen=True)
 class Suggestion:
