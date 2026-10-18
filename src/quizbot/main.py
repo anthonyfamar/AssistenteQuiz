@@ -10,9 +10,16 @@ from quizbot.assistente import AssistenteQuiz
 from quizbot.config import INTERVALO_POLLING, URL_INICIAL
 from quizbot.page_reader import PageReader
 from quizbot.presenter import TerminalPresenter
-from quizbot.solvers import FakeSolver
+from quizbot.solvers import SolverError
+from quizbot.solvers.fabrica import montar_solver
 
 def main() -> None:
+    try:
+        solver = montar_solver()
+    except SolverError as erro:
+        print(f"[erro] {erro}")
+        return
+
     with sync_playwright() as playwright:
         navegador = playwright.chromium.launch(headless=False)
         pagina = navegador.new_page()
@@ -20,7 +27,7 @@ def main() -> None:
 
         assistente = AssistenteQuiz(
             reader=PageReader(pagina),
-            solver=FakeSolver(),
+            solver=solver,
             presenter=TerminalPresenter(),
             intervalo=INTERVALO_POLLING,
         )
