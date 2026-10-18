@@ -4,6 +4,7 @@
 #              ja configurado (base_url + chave) e o modelo. Pede a resposta em JSON,
 #              valida e devolve a Suggestion. Qualquer falha vira SolverError.
 import json
+from dataclasses import replace
 
 from openai import OpenAI, OpenAIError
 
@@ -71,6 +72,7 @@ class ApiSolver(Solver):
             raise SolverError(f"{self.nome}: resposta vazia")
         texto = resposta.choices[0].message.content or ""
         try:
-            return ler_resposta(texto, len(question.alternativas))
+            sugestao = ler_resposta(texto, len(question.alternativas))
         except SolverError as erro:
             raise SolverError(f"{self.nome}: {erro}") from erro
+        return replace(sugestao, origem=self.nome)
