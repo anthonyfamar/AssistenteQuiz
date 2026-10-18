@@ -4,6 +4,7 @@
 #               SO LEITURA: a classe nao tem nenhum metodo de clicar ou enviar.
 #               Olha todas as abas e todos os iframes do navegador e usa o primeiro
 #               que tiver uma questao.
+#               Tira o "a. " do comeco das alternativas (PADRAO_PREFIXO_ALTERNATIVA).
 #               ler_questao() devolve uma Question, ou None se nao houver questao
 #               (login, menu), e entao o assistente fica quieto.
 #               So le quando ha exatamente 1 questao na tela: com varias, nao da
@@ -11,12 +12,19 @@
 #
 # Os seletores CSS de cada site ficam no config.py.
 
+import re
+
 from playwright.sync_api import BrowserContext, Frame
 from playwright.sync_api import Error as PlaywrightError
 
-from quizbot.config import SELETOR_ALTERNATIVAS, SELETOR_ENUNCIADO
+from quizbot.config import (
+    PADRAO_PREFIXO_ALTERNATIVA,
+    SELETOR_ALTERNATIVAS,
+    SELETOR_ENUNCIADO,
+)
 from quizbot.models import Question
 
+_PREFIXO = re.compile(PADRAO_PREFIXO_ALTERNATIVA)
 
 class NavegadorFechado(Exception):
     """O navegador foi fechado ou desconectado."""
@@ -46,7 +54,7 @@ class PageReader:
     def _ler_alternativas(quadro: Frame) -> tuple[str, ...]:
         elementos = quadro.locator(SELETOR_ALTERNATIVAS)
         textos = elementos.all_inner_texts()
-        return tuple(texto.strip() for texto in textos)
+        return tuple(_PREFIXO.sub("", texto.strip()) for texto in textos)
 
     def ler_questao(self) -> Question | None:
         for quadro in self._quadros():
