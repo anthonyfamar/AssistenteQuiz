@@ -7,3 +7,17 @@
 #                             ou Ollama): base_url, chave e modelo.
 #
 # Quando o ApiSolver chegar, este arquivo pode virar a pasta solvers/ (base, fake, api).
+
+from abc import ABC, abstractmethod
+
+from quizbot.models import Question, Suggestion
+
+
+class Solver(ABC):
+    @abstractmethod
+    def solve(self, question) -> Suggestion:
+        ...
+
+class FakeSolver(Solver):
+    def solve(self, question: Question) -> Suggestion:
+        return Suggestion(indice=0, explicacao="FakeSolver: resposta fixa para teste.")
