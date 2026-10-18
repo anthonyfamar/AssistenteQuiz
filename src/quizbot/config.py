@@ -5,7 +5,9 @@
 #
 # Os seletores abaixo sao do Moodle. Para outro site: F12 -> Inspecionar -> achar
 # o bloco da questao -> usar classes estaveis (nunca ids gerados a cada acesso).
+import os
 from dataclasses import dataclass
+from pathlib import Path
 
 # Seletores do Moodle (AVAEDUC). Para o demo/quiz_local.html, use
 # "#enunciado" e "#alternativas .alternativa".
@@ -17,8 +19,16 @@ PADRAO_PREFIXO_ALTERNATIVA = r"^[a-zA-Z][.)]\s+"
 
 INTERVALO_POLLING = 1.0 
 
-# Endereco do Chrome aberto com --remote-debugging-port=9222 (veja o CLAUDE.md).
-URL_CDP = "http://localhost:9222"
+# Chrome do assistente: aberto com a porta de depuracao e um perfil separado, fora
+# do projeto (guarda o login do usuario). O programa abre o Chrome se precisar.
+PORTA_DEBUG = 9222
+URL_CDP = f"http://localhost:{PORTA_DEBUG}"
+PERFIL_CHROME = Path.home() / "chrome-assistente"
+CAMINHOS_CHROME = (
+    Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Google/Chrome/Application/chrome.exe",
+    Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")) / "Google/Chrome/Application/chrome.exe",
+    Path(os.environ.get("LOCALAPPDATA", "")) / "Google/Chrome/Application/chrome.exe",
+)
 
 
 # Um provedor de IA gratuito. chave_env e modelo_env sao NOMES de variaveis do .env
