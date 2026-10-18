@@ -12,7 +12,7 @@
 import threading
 
 from quizbot.models import Question
-from quizbot.page_reader import PageReader
+from quizbot.page_reader import LeituraIncompleta, PageReader
 from quizbot.presenter import Presenter
 from quizbot.solvers import Solver, SolverError
 
@@ -32,9 +32,18 @@ class AssistenteQuiz:
         self._intervalo = intervalo
         self._parar = parar if parar is not None else threading.Event()
         self._ultima: Question | None = None
+        self._ultimo_aviso: str | None = None
 
     def _passo(self) -> None:
-        questao = self._reader.ler_questao()
+        try:
+            questao = self._reader.ler_questao()
+        except LeituraIncompleta as erro:
+            aviso = str(erro)
+            if aviso != self._ultimo_aviso:
+                self._ultimo_aviso = aviso
+                self._presenter.avisar(aviso)
+            return
+        self._ultimo_aviso = None
         if questao is None:
             self._ultima = None
             return
@@ -42,6 +51,10 @@ class AssistenteQuiz:
             return
 
         self._ultima = questao
+        print(
+            f"[leitura] {len(questao.alternativas)} alternativas, "
+            f"{len(questao.imagens)} imagem(ns) | {questao.enunciado[:100]!r}"
+        )
         self._presenter.consultando()
         try:
             sugestao = self._solver.solve(questao)
