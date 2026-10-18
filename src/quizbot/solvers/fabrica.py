@@ -31,13 +31,18 @@ def _criar(provedor: Provedor) -> ApiSolver | None:
         print(f"[aviso] {provedor.nome} ignorado: {provedor.modelo_env} precisa terminar em ':free'.")
         return None
 
+    modelo_visao = os.getenv(provedor.modelo_visao_env, "").strip() or None
+    if modelo_visao and provedor.so_free and not modelo_visao.endswith(":free"):
+        print(f"[aviso] {provedor.nome}: {provedor.modelo_visao_env} precisa terminar em ':free'. Visao desligada.")
+        modelo_visao = None
+
     client = OpenAI(
         base_url=provedor.base_url,
         api_key=chave,
         timeout=TIMEOUT_API,
         max_retries=0,
     )
-    return ApiSolver(provedor.nome, client, modelo)
+    return ApiSolver(provedor.nome, client, modelo, modelo_visao, provedor.max_imagens)
 
 
 def montar_solver() -> Solver:
