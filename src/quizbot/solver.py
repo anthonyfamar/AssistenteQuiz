@@ -15,7 +15,7 @@ from quizbot.models import Question, Suggestion
 
 class Solver(ABC):
     @abstractmethod
-    def solve(self, question) -> Suggestion:
+    def solve(self, question: Question) -> Suggestion:
         ...
 
 class FakeSolver(Solver):
