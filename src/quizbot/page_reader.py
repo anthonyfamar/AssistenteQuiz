@@ -8,7 +8,9 @@
 # TODO: os seletores CSS de cada site ficam no config.py.
 
 from playwright.sync_api import Page
+from quizbot.config import SELETOR_ALTERNATIVAS, SELETOR_ENUNCIADO
 from quizbot.models import Question
+
 
 SELETOR_ENUNCIADO = "#enunciado"
 SELETOR_ALTERNATIVAS = "#alternativas .alternativa"
