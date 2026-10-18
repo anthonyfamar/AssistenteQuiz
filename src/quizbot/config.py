@@ -12,6 +12,9 @@ from dataclasses import dataclass
 SELETOR_ENUNCIADO = ".que .qtext"
 SELETOR_ALTERNATIVAS = ".que .answer label"
 
+# Tira o "a. " ou "b) " do comeco de cada alternativa (o presenter ja poe as letras).
+PADRAO_PREFIXO_ALTERNATIVA = r"^[a-zA-Z][.)]\s+"
+
 INTERVALO_POLLING = 1.0 
 
 # Endereco do Chrome aberto com --remote-debugging-port=9222 (veja o CLAUDE.md).
