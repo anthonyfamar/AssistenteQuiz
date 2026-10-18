@@ -25,4 +25,6 @@ class TerminalPresenter(Presenter):
         print()
         print(f"Sugestão: alternativa {ascii_uppercase[suggestion.indice]}")
         print(f"Por quê: {suggestion.explicacao}")
+        if suggestion.origem:
+            print(f"Respondido por: {suggestion.origem}")
         print("=" * 60)
