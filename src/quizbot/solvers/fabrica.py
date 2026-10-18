@@ -23,10 +23,7 @@ from quizbot.solvers.fallback import FallbackSolver
 
 def _criar(provedor: Provedor) -> ApiSolver | None:
     modelo = os.getenv(provedor.modelo_env, "").strip()
-    if provedor.chave_env is None:
-        chave = "ollama"
-    else:
-        chave = os.getenv(provedor.chave_env, "").strip()
+    chave = os.getenv(provedor.chave_env, "").strip()
     if not modelo or not chave:
         return None
 
