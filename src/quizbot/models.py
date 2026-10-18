@@ -5,6 +5,7 @@
 #               O __eq__ gerado e como o assistente percebe que a questao mudou.
 # Suggestion -> guarda a resposta sugerida pela IA: o indice da alternativa
 #               + uma explicacao curta.
+from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Question:
