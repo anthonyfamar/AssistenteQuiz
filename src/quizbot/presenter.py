@@ -1,8 +1,10 @@
 # PRESENTER - define ONDE a sugestao aparece para o usuario.
 #
 # Presenter (classe abstrata) -> contrato: mostrar(question, suggestion).
-# TerminalPresenter           -> imprime no terminal do VS Code (primeiro).
-# JanelaPresenter (depois)    -> janelinha sempre visivel com tkinter (opcional).
+#                                Opcionais: consultando() (a IA esta pensando) e
+#                                avisar(mensagem) (erros e avisos; padrao: imprime).
+# TerminalPresenter           -> imprime no terminal.
+# JanelaPresenter (janela.py) -> janelinha sempre visivel com tkinter.
 #                                Trocar de um para o outro e so trocar a classe.
 from abc import ABC, abstractmethod
 from string import ascii_uppercase
@@ -13,6 +15,12 @@ class Presenter(ABC):
     @abstractmethod
     def mostrar(self, question: Question, suggestion: Suggestion) -> None:
         ...
+
+    def consultando(self) -> None:
+        """Questao nova detectada, a IA esta sendo consultada. Opcional."""
+
+    def avisar(self, mensagem: str) -> None:
+        print(f"[aviso] {mensagem}")
 
 class TerminalPresenter(Presenter):
     def mostrar(self, question: Question, suggestion: Suggestion) -> None:
