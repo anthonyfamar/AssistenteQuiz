@@ -10,7 +10,7 @@ from quizbot.assistente import AssistenteQuiz
 from quizbot.config import INTERVALO_POLLING, URL_INICIAL
 from quizbot.page_reader import PageReader
 from quizbot.presenter import TerminalPresenter
-from quizbot.solver import FakeSolver
+from quizbot.solvers import FakeSolver
 
 def main() -> None:
     with sync_playwright() as playwright:
