@@ -21,3 +21,7 @@ class Solver(ABC):
     @property
     def nome(self) -> str:
         return type(self).__name__
+
+    @property
+    def aceita_imagens(self) -> bool:
+        return True
