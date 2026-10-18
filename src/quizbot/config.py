@@ -18,13 +18,13 @@ URL_INICIAL = (RAIZ / "demo" / "quiz_local.html").as_uri()
 
 
 # Um provedor de IA gratuito. chave_env e modelo_env sao NOMES de variaveis do .env
-# (a chave em si nunca aparece no codigo). chave_env None = nao precisa de chave.
+# (a chave em si nunca aparece no codigo).
 # so_free = so aceita modelo terminado em ":free" (trava para nao gastar).
 @dataclass(frozen=True)
 class Provedor:
     nome: str
     base_url: str
-    chave_env: str | None
+    chave_env: str
     modelo_env: str
     so_free: bool = False
 
@@ -49,14 +49,14 @@ PROVEDORES = {
         "OPENROUTER_MODEL",
         so_free=True,
     ),
-    "ollama": Provedor(
-        "ollama",
-        "http://localhost:11434/v1/",
-        None,
-        "OLLAMA_MODEL",
+    "ollama-cloud": Provedor(
+        "ollama-cloud",
+        "https://ollama.com/v1",
+        "OLLAMA_API_KEY",
+        "OLLAMA_CLOUD_MODEL",
     ),
 }
 
-ORDEM_PADRAO = "gemini,groq,openrouter,ollama"
+ORDEM_PADRAO = "gemini,groq,openrouter,ollama-cloud"
 TIMEOUT_API = 20.0
 COOLDOWN_PROVEDOR = 60.0
