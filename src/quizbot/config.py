@@ -9,8 +9,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-# Seletores do Moodle (AVAEDUC). Para o demo/quiz_local.html, use
-# "#enunciado" e "#alternativas .alternativa".
+# Seletores do Moodle.
 SELETOR_ENUNCIADO = ".que .qtext"
 SELETOR_ALTERNATIVAS = ".que .answer label"
 
