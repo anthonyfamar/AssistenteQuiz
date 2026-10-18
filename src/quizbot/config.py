@@ -3,18 +3,19 @@
 # Guarda: seletores CSS do site (enunciado, alternativas), intervalo do polling,
 # provedor de IA e modelo. A API key NAO fica aqui: fica no .env.
 #
-# TODO: preencher os seletores quando o site for escolhido
-#       (F12 -> Inspecionar -> botao direito -> Copy -> Copy selector).
+# Os seletores abaixo sao do Moodle. Para outro site: F12 -> Inspecionar -> achar
+# o bloco da questao -> usar classes estaveis (nunca ids gerados a cada acesso).
 from dataclasses import dataclass
-from pathlib import Path
 
-SELETOR_ENUNCIADO = "#enunciado"
-SELETOR_ALTERNATIVAS = "#alternativas .alternativa"
+# Seletores do Moodle (AVAEDUC). Para o demo/quiz_local.html, use
+# "#enunciado" e "#alternativas .alternativa".
+SELETOR_ENUNCIADO = ".que .qtext"
+SELETOR_ALTERNATIVAS = ".que .answer label"
 
 INTERVALO_POLLING = 1.0 
 
-RAIZ = Path(__file__).resolve().parents[2]
-URL_INICIAL = (RAIZ / "demo" / "quiz_local.html").as_uri()
+# Endereco do Chrome aberto com --remote-debugging-port=9222 (veja o CLAUDE.md).
+URL_CDP = "http://localhost:9222"
 
 
 # Um provedor de IA gratuito. chave_env e modelo_env sao NOMES de variaveis do .env
