@@ -3,6 +3,7 @@
 # FallbackSolver -> recebe uma LISTA de solvers e e, ele proprio, um Solver.
 #                   Quando um falha (SolverError), fica em "pausa" por um tempo
 #                   (cooldown) para nao gastar a cota gratis a cada questao.
+#                   Questao com imagem so e tentada em quem aceita imagem.
 import time
 
 from quizbot.models import Question, Suggestion
@@ -21,9 +22,24 @@ class FallbackSolver(Solver):
     def nome(self) -> str:
         return "fallback(" + ", ".join(s.nome for s in self._solvers) + ")"
 
+    @property
+    def aceita_imagens(self) -> bool:
+        return any(s.aceita_imagens for s in self._solvers)
+
     def solve(self, question: Question) -> Suggestion:
+        candidatos = [
+            (i, solver)
+            for i, solver in enumerate(self._solvers)
+            if solver.aceita_imagens or not question.imagens
+        ]
+        if not candidatos:
+            raise SolverError(
+                "a questao tem imagem, mas nenhum provedor tem modelo de visao "
+                "(preencha *_MODEL_VISAO no .env)"
+            )
+
         erros: list[str] = []
-        for i, solver in enumerate(self._solvers):
+        for i, solver in candidatos:
             if self._livre_em.get(i, 0.0) > time.monotonic():
                 continue
             try:
