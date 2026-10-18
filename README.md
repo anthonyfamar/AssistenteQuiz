@@ -1,6 +1,6 @@
 # AssistenteQuiz
 
-Programa em Python que acompanha um quiz web em tempo real. Quando a questão na tela muda, ele lê o enunciado e as alternativas, consulta uma IA gratuita e mostra no terminal uma **sugestão de resposta com uma explicação curta**.
+Programa em Python que acompanha um quiz web em tempo real. Quando a questão na tela muda, ele lê o enunciado e as alternativas, consulta uma IA gratuita e mostra numa janelinha (ou no terminal) uma **sugestão de resposta com uma explicação curta**.
 
 Quem lê, decide e clica é sempre **você**: o programa só lê a página e nunca clica, envia ou navega por você.
 
@@ -37,7 +37,7 @@ Este é um projeto **educacional**, feito para estudar Playwright, APIs de IA e 
    │                    │◀── lê o texto (DOM) ────│  a cada ~1 segundo         │
    │                    │                         │── questão nova? ──────────▶│
    │                    │                         │◀── índice + explicação ────│
-   │◀──────────── sugestão no terminal ───────────│                            │
+   │◀─────────── sugestão na janelinha ───────────│                            │
 ```
 
 1. Você abre o seu Chrome com uma porta de depuração, faz login e navega no seu ritmo.
@@ -95,26 +95,33 @@ Os planos gratuitos têm limites e **mudam sem aviso**. Confirme os valores atua
 
 ## Como usar
 
-**1. Abra o Chrome com a porta de depuração** (PowerShell no Windows):
+**Dê dois cliques em `iniciar.bat`**, na pasta do projeto. Ele:
 
-```powershell
-& "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --user-data-dir="$env:USERPROFILE\chrome-assistente"
+1. abre o Chrome do assistente, se ainda não estiver aberto (com a porta de depuração 9222 e um perfil próprio, `chrome-assistente`, na sua pasta de usuário, fora do projeto);
+2. abre uma janelinha no canto inferior direito da tela, sempre por cima das outras;
+3. conecta ao Chrome e começa a ler.
+
+Faça login no site **na janela do Chrome que abriu** (nenhuma senha vai em código ou `.env`) e abra uma questão. A janelinha mostra:
+
+```
+SUGESTÃO
+C - Brasília
+A capital oficial do Brasil é Brasília, fundada em 1960.
+Respondido por: groq
 ```
 
-É uma janela separada do seu Chrome do dia a dia, com um perfil próprio (`chrome-assistente`, na sua pasta de usuário, fora do projeto) que guarda o seu login. Em outro sistema operacional, só o caminho do executável muda.
+Ela também mostra `Aguardando questão…`, `Consultando a IA…` (assim você nunca vê a resposta da questão anterior) e os avisos em laranja. Para encerrar, feche a janelinha. O Chrome continua aberto.
 
-> Enquanto esse Chrome estiver aberto, qualquer programa do seu computador pode controlá-lo pela porta 9222 (ela só aceita conexões locais). Use só para o quiz e feche depois.
+> Enquanto o Chrome do assistente estiver aberto, qualquer programa do seu computador pode controlá-lo pela porta 9222 (ela só aceita conexões locais). Use só para o quiz e feche depois.
 
-**2. Faça login** no site, nessa janela, e abra uma questão. Nenhuma senha vai em código ou `.env`.
-
-**3. Em outro terminal**, na raiz do projeto:
+**Pelo terminal**, na raiz do projeto, dá o mesmo resultado:
 
 ```powershell
 $env:PYTHONPATH = "src"
 .\.venv\Scripts\python.exe -m quizbot.main
 ```
 
-A sugestão aparece no terminal sempre que a questão muda. `Ctrl+C` encerra, e o seu Chrome continua aberto.
+Em outro sistema operacional, só o caminho do Chrome (`CAMINHOS_CHROME`, no `config.py`) precisa mudar.
 
 ## Testar com o quiz de demonstração
 
@@ -125,8 +132,8 @@ A pasta `demo/` tem um quiz local (`quiz_local.html`) para testar sem depender d
    SELETOR_ENUNCIADO = "#enunciado"
    SELETOR_ALTERNATIVAS = "#alternativas .alternativa"
    ```
-2. Abra o Chrome com a porta de depuração (passo 1 acima) e arraste o arquivo `demo/quiz_local.html` para a janela.
-3. Rode o programa (passo 3 acima) e clique em **Começar**.
+2. Dê dois cliques em `iniciar.bat` e arraste o arquivo `demo/quiz_local.html` para a janela do Chrome que abrir.
+3. Clique em **Começar**. Nas telas de início e de fim, a janelinha fica em "Aguardando questão…".
 
 ## Adaptar a outro site
 
@@ -145,7 +152,9 @@ AssistenteQuiz/
 │   ├── models.py          Question e Suggestion (dataclasses imutáveis)
 │   ├── config.py          seletores CSS, intervalo, provedores de IA
 │   ├── page_reader.py     SÓ LEITURA: lê a questão de todas as abas e iframes
-│   ├── presenter.py       mostra a sugestão (TerminalPresenter)
+│   ├── presenter.py       contrato Presenter e TerminalPresenter
+│   ├── janela.py          JanelaPresenter: a janelinha (tkinter)
+│   ├── chrome.py          abre o Chrome do assistente com a porta de depuração
 │   ├── assistente.py      o laço: observar → mudou? → solver → presenter
 │   ├── main.py            conecta ao Chrome e monta as peças
 │   └── solvers/
@@ -154,6 +163,7 @@ AssistenteQuiz/
 │       ├── api.py         ApiSolver: um provedor de IA
 │       ├── fallback.py    FallbackSolver: tenta um, depois o próximo
 │       └── fabrica.py     monta os solvers a partir do .env
+├── iniciar.bat            duplo clique: abre o Chrome e a janelinha
 ├── demo/quiz_local.html   quiz de teste
 ├── tests/                 testes (em andamento)
 ├── .env.example           modelo do .env
@@ -180,9 +190,9 @@ AssistenteQuiz/
 
 - [x] Leitura da página (Playwright, só leitura)
 - [x] Quatro provedores de IA gratuitos, com troca automática
-- [x] Sugestão no terminal
+- [x] Sugestão no terminal ou na janelinha
 - [ ] Testes automatizados
-- [ ] Janela flutuante (tkinter) no lugar do terminal
+- [x] Janela flutuante (tkinter), sempre por cima
 
 ## Licença
 
