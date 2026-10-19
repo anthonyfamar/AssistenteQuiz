@@ -1,18 +1,22 @@
-# CHROME - garante que o Chrome do assistente esta aberto com a porta de depuracao.
+# CHROME - garante que o navegador do assistente esta aberto com a porta de depuracao.
 #
-# garantir_chrome() -> se a porta 9222 nao responde, abre o Chrome (perfil separado,
-#                      fora do projeto) e espera ate a porta subir.
-#                      Se nao conseguir, levanta ChromeError com o motivo.
+# garantir_chrome() -> se a porta 9222 nao responde, abre o navegador (Chrome ou, se
+#                      nao houver, o Edge; perfil separado, fora do projeto) e espera
+#                      ate a porta subir. Se nao conseguir, levanta ChromeError.
+# achar_navegador() -> caminho do navegador: o CAMINHO_NAVEGADOR do .env, se existir,
+#                      senao o primeiro de CAMINHOS_NAVEGADOR que existir.
 # O usuario faz login e navega sozinho nessa janela. O programa so le.
+import os
 import socket
 import subprocess
 import time
+from pathlib import Path
 
-from quizbot.config import CAMINHOS_CHROME, PERFIL_CHROME, PORTA_DEBUG
+from quizbot.config import CAMINHOS_NAVEGADOR, PERFIL_NAVEGADOR, PORTA_DEBUG
 
 
 class ChromeError(Exception):
-    """Nao foi possivel deixar o Chrome pronto para a conexao."""
+    """Nao foi possivel deixar o navegador pronto para a conexao."""
 
 
 def porta_aberta() -> bool:
@@ -23,8 +27,10 @@ def porta_aberta() -> bool:
         return False
 
 
-def _achar_chrome() -> str | None:
-    for caminho in CAMINHOS_CHROME:
+def achar_navegador() -> str | None:
+    manual = os.environ.get("CAMINHO_NAVEGADOR", "").strip().strip('"')
+    candidatos = ([Path(manual)] if manual else []) + list(CAMINHOS_NAVEGADOR)
+    for caminho in candidatos:
         if caminho.exists():
             return str(caminho)
     return None
@@ -34,19 +40,20 @@ def garantir_chrome(espera: float = 15.0) -> None:
     if porta_aberta():
         return
 
-    executavel = _achar_chrome()
+    executavel = achar_navegador()
     if executavel is None:
         raise ChromeError(
-            "Nao encontrei o Google Chrome. Instale-o ou ajuste CAMINHOS_CHROME no config.py."
+            "Nao encontrei o Chrome nem o Edge. Abra a configuracao e indique onde o "
+            "navegador esta instalado."
         )
 
-    # DETACHED_PROCESS: o Chrome nao fecha junto com este programa nem com o terminal.
+    # DETACHED_PROCESS: o navegador nao fecha junto com este programa nem com o terminal.
     separado = getattr(subprocess, "DETACHED_PROCESS", 0)
     subprocess.Popen(
         [
             executavel,
             f"--remote-debugging-port={PORTA_DEBUG}",
-            f"--user-data-dir={PERFIL_CHROME}",
+            f"--user-data-dir={PERFIL_NAVEGADOR}",
         ],
         creationflags=separado,
     )
@@ -57,6 +64,6 @@ def garantir_chrome(espera: float = 15.0) -> None:
             return
         time.sleep(0.5)
     raise ChromeError(
-        "O Chrome abriu, mas sem a porta de depuracao. Se o Chrome do assistente ja estava "
-        "aberto, feche-o e tente de novo."
+        "O navegador abriu, mas sem a porta de depuracao. Se o navegador do assistente ja "
+        "estava aberto, feche todas as janelas dele e tente de novo."
     )
