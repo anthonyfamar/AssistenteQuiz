@@ -34,14 +34,14 @@ Este é um projeto **educacional**, feito para estudar Playwright, APIs de IA e 
   Você                Chrome               AssistenteQuiz                 IA gratuita
    │  abre e loga       │                         │                            │
    │───────────────────▶│                         │                            │
-   │                    │◀── lê o texto (DOM) ────│  a cada ~1 segundo         │
+   │                    │◀── lê o texto (DOM) ────│  a cada ~0,5 segundo       │
    │                    │                         │── questão nova? ──────────▶│
    │                    │                         │◀── índice + explicação ────│
    │◀─────────── sugestão na janelinha ───────────│                            │
 ```
 
 1. Você abre o seu Chrome com uma porta de depuração, faz login e navega no seu ritmo.
-2. O programa se conecta a esse Chrome e consulta a página a cada ~1 segundo, lendo o texto com seletores CSS. As fórmulas (imagens do Wiris) viram texto, e as imagens de verdade (gráficos, figuras) são baixadas e enviadas a uma IA que enxerga. Não tira print da tela.
+2. O programa se conecta a esse Chrome e consulta a página a cada ~0,5 segundo, lendo o texto com seletores CSS. As fórmulas (imagens do Wiris) viram texto, e as imagens de verdade (gráficos, figuras) são baixadas e enviadas a uma IA que enxerga. Não tira print da tela.
 3. Se o enunciado é diferente do último lido, é uma questão nova. A anterior fica guardada para não gastar a cota da IA com a mesma questão.
 4. A questão vai para o `Solver`, que consulta a IA e devolve a sugestão.
 5. Se a página não tiver questão (login, menu), os seletores não acham nada e o programa fica quieto.
