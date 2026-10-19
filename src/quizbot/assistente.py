@@ -1,6 +1,6 @@
 # ASSISTENTE - o "loop": junta tudo.
 #
-# AssistenteQuiz -> a cada ~1 segundo (polling):
+# AssistenteQuiz -> a cada ~0,5 segundo (polling, veja INTERVALO_POLLING no config.py):
 #                   1. pede a questao ao PageReader;
 #                   2. se for diferente da anterior (Question.__eq__), e questao nova;
 #                   3. manda para o Solver, que devolve a Suggestion;
