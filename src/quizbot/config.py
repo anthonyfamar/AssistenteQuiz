@@ -16,7 +16,7 @@ SELETOR_ALTERNATIVAS = ".que .answer label"
 # Tira o "a. " ou "b) " do comeco de cada alternativa (o presenter ja poe as letras).
 PADRAO_PREFIXO_ALTERNATIVA = r"^[a-zA-Z][.)]\s+"
 
-INTERVALO_POLLING = 1.0 
+INTERVALO_POLLING = 0.5 
 
 # Chrome do assistente: aberto com a porta de depuracao e um perfil separado, fora
 # do projeto (guarda o login do usuario). O programa abre o Chrome se precisar.
