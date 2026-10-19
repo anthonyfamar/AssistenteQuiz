@@ -40,7 +40,7 @@ Este é um projeto **educacional**, feito para estudar Playwright, APIs de IA e 
    │◀─────────── sugestão na janelinha ───────────│                            │
 ```
 
-1. Você abre o seu Chrome com uma porta de depuração, faz login e navega no seu ritmo.
+1. O programa abre o navegador do assistente (Chrome ou Edge, com uma porta de depuração). Você faz login e navega no seu ritmo.
 2. O programa se conecta a esse Chrome e consulta a página a cada ~0,5 segundo, lendo o texto com seletores CSS. As fórmulas (imagens do Wiris) viram texto, e as imagens de verdade (gráficos, figuras) são baixadas e enviadas a uma IA que enxerga. Não tira print da tela.
 3. Se o enunciado é diferente do último lido, é uma questão nova. A anterior fica guardada para não gastar a cota da IA com a mesma questão.
 4. A questão vai para o `Solver`, que consulta a IA e devolve a sugestão.
@@ -49,11 +49,28 @@ Este é um projeto **educacional**, feito para estudar Playwright, APIs de IA e 
 
 ## Requisitos
 
-- Python **3.10 ou superior** (testado no 3.11)
-- Google Chrome
+- Windows 10 ou 11 (o instalador e os atalhos são para Windows)
+- Chrome **ou Edge** (o Edge já vem no Windows)
 - Pelo menos uma chave de API gratuita (veja [Provedores de IA](#provedores-de-ia))
+- Python 3.10 ou superior, **só** se você for instalar na mão. O instalador cuida disso sozinho.
 
 ## Instalação
+
+### Para quem não programa (Windows)
+
+Não precisa ter Python, IDE nem git. Só internet.
+
+1. Baixe o projeto (**Code → Download ZIP**, aqui no GitHub) e extraia a pasta.
+2. Dê dois cliques em **`1-INSTALAR.bat`**. Se o Windows mostrar "O Windows protegeu o computador", clique em *Mais informações → Executar assim mesmo* (acontece com qualquer arquivo baixado da internet).
+3. Espere uns 3 a 5 minutos. O instalador baixa o Python oficial (conferindo a assinatura digital dele e instalando só para este programa, sem administrador e sem mexer no resto do computador), instala os componentes e abre a janela de configuração.
+4. Cole a sua chave de IA na janela e clique em **Salvar**. O botão *Como conseguir* abre a página onde a chave é criada.
+5. Use o atalho **AssistenteQuiz**, que apareceu na área de trabalho.
+
+Os componentes ficam numa pasta **curta**, `AppData\Local\AssistenteQuiz`, e não dentro da pasta do projeto. O Windows não aceita caminhos com mais de 260 caracteres e o Playwright tem pastas muito fundas, então numa pasta de projeto comprida (OneDrive, por exemplo) a instalação falharia.
+
+O arquivo [`LEIA-ME.txt`](LEIA-ME.txt) explica tudo isso em linguagem simples, para entregar a quem vai usar.
+
+### Para desenvolvedores (instalação manual)
 
 ```powershell
 python -m venv .venv
@@ -65,7 +82,9 @@ No Mac/Linux, ative com `source .venv/bin/activate`.
 
 ## Configuração
 
-Copie o modelo e preencha:
+Pela janela: atalho **AssistenteQuiz - Configuracao** (ou `configurar.bat`). Ela grava o `.env` e serve também para trocar uma chave depois.
+
+Ou na mão: copie o modelo e preencha.
 
 ```powershell
 Copy-Item .env.example .env
@@ -97,13 +116,13 @@ Os planos gratuitos têm limites e **mudam sem aviso**. Confirme os valores atua
 
 ## Como usar
 
-**Dê dois cliques em `iniciar.bat`**, na pasta do projeto. Ele:
+**Dê dois cliques no atalho `AssistenteQuiz`** (ou em `iniciar.bat`, na pasta do projeto). Ele:
 
-1. abre o Chrome do assistente, se ainda não estiver aberto (com a porta de depuração 9222 e um perfil próprio, `chrome-assistente`, na sua pasta de usuário, fora do projeto);
+1. abre o navegador do assistente, se ainda não estiver aberto: o Chrome ou, se não houver, o Edge (com a porta de depuração 9222 e um perfil próprio, `chrome-assistente`, na sua pasta de usuário, fora do projeto);
 2. abre uma janelinha no canto inferior direito da tela, sempre por cima das outras;
-3. conecta ao Chrome e começa a ler.
+3. conecta ao navegador e começa a ler.
 
-Faça login no site **na janela do Chrome que abriu** (nenhuma senha vai em código ou `.env`) e abra uma questão. A janelinha mostra:
+Faça login no site **na janela do navegador que abriu** (nenhuma senha vai em código ou `.env`) e abra uma questão. A janelinha mostra:
 
 ```
 SUGESTÃO
@@ -112,9 +131,9 @@ A capital oficial do Brasil é Brasília, fundada em 1960.
 Respondido por: groq
 ```
 
-Ela também mostra `Aguardando questão…`, `Consultando a IA…` (assim você nunca vê a resposta da questão anterior) e os avisos em laranja. Para encerrar, feche a janelinha. O Chrome continua aberto.
+Ela também mostra `Aguardando questão…`, `Consultando a IA…` (assim você nunca vê a resposta da questão anterior) e os avisos em laranja. Para encerrar, feche a janelinha. O navegador continua aberto.
 
-> Enquanto o Chrome do assistente estiver aberto, qualquer programa do seu computador pode controlá-lo pela porta 9222 (ela só aceita conexões locais). Use só para o quiz e feche depois.
+> Enquanto o navegador do assistente estiver aberto, qualquer programa do seu computador pode controlá-lo pela porta 9222 (ela só aceita conexões locais). Use só para o quiz e feche depois.
 
 **Pelo terminal**, na raiz do projeto, dá o mesmo resultado:
 
@@ -123,7 +142,7 @@ $env:PYTHONPATH = "src"
 .\.venv\Scripts\python.exe -m quizbot.main
 ```
 
-Em outro sistema operacional, só o caminho do Chrome (`CAMINHOS_CHROME`, no `config.py`) precisa mudar.
+Se o programa não achar o Chrome nem o Edge, a janela de configuração pede o caminho do navegador e o guarda em `CAMINHO_NAVEGADOR`, no `.env`. Em outro sistema operacional, os caminhos de `CAMINHOS_NAVEGADOR`, no `config.py`, é que precisam mudar.
 
 ## Adaptar a outro site
 
@@ -146,7 +165,8 @@ AssistenteQuiz/
 │   ├── formulas.py        MathML → texto linear (x^2, (a)/(b), sqrt(x))
 │   ├── presenter.py       contrato Presenter e TerminalPresenter
 │   ├── janela.py          JanelaPresenter: a janelinha (tkinter)
-│   ├── chrome.py          abre o Chrome do assistente com a porta de depuração
+│   ├── chrome.py          abre o navegador do assistente (Chrome ou Edge) com a porta de depuração
+│   ├── configurar.py      a janela de configuração (grava o .env)
 │   ├── assistente.py      o laço: observar → mudou? → solver → presenter
 │   ├── main.py            conecta ao Chrome e monta as peças
 │   └── solvers/
@@ -154,7 +174,11 @@ AssistenteQuiz/
 │       ├── api.py         ApiSolver: um provedor de IA
 │       ├── fallback.py    FallbackSolver: tenta um, depois o próximo
 │       └── fabrica.py     monta os solvers a partir do .env
-├── iniciar.bat            duplo clique: abre o Chrome e a janelinha
+├── 1-INSTALAR.bat         duplo clique: instala tudo (Python, componentes, atalhos)
+├── instalar.ps1           o instalador em si (chamado pelo 1-INSTALAR.bat)
+├── iniciar.bat            duplo clique: abre o navegador e a janelinha
+├── configurar.bat         duplo clique: janela das chaves de IA
+├── LEIA-ME.txt            passo a passo para quem não programa
 ├── .env.example           modelo do .env
 └── requirements.txt
 ```
@@ -183,6 +207,7 @@ AssistenteQuiz/
 - [x] Quatro provedores de IA gratuitos, com troca automática
 - [x] Sugestão no terminal ou na janelinha
 - [x] Fórmulas (Wiris) lidas como texto e questões com imagem (modelo de visão)
+- [x] Instalador para quem não programa (instala o Python, janela de configuração, atalhos)
 - [x] Janela flutuante (tkinter), sempre por cima
 
 ## Licença
