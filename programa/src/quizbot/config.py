@@ -9,6 +9,11 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+# Pasta "programa" (onde ficam src/, requirements.txt e o .env). Este arquivo esta em
+# programa/src/quizbot/config.py. O .env fica sempre aqui, e todo o programa usa este caminho.
+PASTA_PROGRAMA = Path(__file__).resolve().parents[2]
+ARQUIVO_ENV = PASTA_PROGRAMA / ".env"
+
 # Seletores do Moodle.
 SELETOR_ENUNCIADO = ".que .qtext"
 SELETOR_ALTERNATIVAS = ".que .answer label"

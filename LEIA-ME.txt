@@ -23,6 +23,8 @@ Você precisa de: Windows 10 ou 11 e internet. NÃO precisa ter Python nem nada 
     "Extrair tudo...". Depois abra a pasta que foi criada.
 
  2. Dê dois cliques em  1-INSTALAR.bat
+    (É o único arquivo que você precisa abrir. Os outros, como a pasta "programa",
+    README e CLAUDE.md, são para quem mexe no código: pode ignorar.)
 
     Se aparecer uma tela azul escrita "O Windows protegeu o computador":
     clique em "Mais informações" e depois em "Executar assim mesmo".
@@ -60,8 +62,10 @@ COMO CONSEGUIR A CHAVE (GEMINI, GRATUITO)
 -----------------------------------------
 A chave é uma senha comprida que permite ao programa falar com a IA. Uma só já basta.
 
- 1. Na janela de Configuração, clique em "Como conseguir" ao lado de "Gemini (Google)".
-    O navegador abre a página do Google AI Studio.
+ 1. Abra o Google AI Studio: https://aistudio.google.com/apikey
+    (copie esse endereço e cole na barra do navegador). Se preferir, na janela de
+    Configuração clique em "Como conseguir" ao lado de "Gemini (Google)": ele abre
+    essa mesma página.
  2. Entre com a sua conta Google.
  3. Clique no botão para criar a chave de API (algo como "Criar chave de API" ou
     "Create API key"; o nome do botão pode mudar um pouco com o tempo).

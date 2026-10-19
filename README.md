@@ -61,7 +61,7 @@ Este é um projeto **educacional**, feito para estudar Playwright, APIs de IA e 
 Não precisa ter Python, IDE nem git. Só internet.
 
 1. Baixe o projeto (**Code → Download ZIP**, aqui no GitHub) e extraia a pasta.
-2. Dê dois cliques em **`1-INSTALAR.bat`**. Se o Windows mostrar "O Windows protegeu o computador", clique em *Mais informações → Executar assim mesmo* (acontece com qualquer arquivo baixado da internet).
+2. Dê dois cliques em **`1-INSTALAR.bat`**, o único arquivo que precisa abrir (o código fica na pasta `programa`). Se o Windows mostrar "O Windows protegeu o computador", clique em *Mais informações → Executar assim mesmo* (acontece com qualquer arquivo baixado da internet).
 3. Espere uns 3 a 5 minutos. O instalador baixa o Python oficial (conferindo a assinatura digital dele e instalando só para este programa, sem administrador e sem mexer no resto do computador), instala os componentes e abre a janela de configuração.
 4. Cole a sua chave de IA na janela e clique em **Salvar**. O botão *Como conseguir* abre a página onde a chave é criada.
 5. Use o atalho **AssistenteQuiz**, que apareceu na área de trabalho.
@@ -75,19 +75,19 @@ O arquivo [`LEIA-ME.txt`](LEIA-ME.txt) explica tudo isso em linguagem simples, p
 ```powershell
 python -m venv .venv
 .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r programa\requirements.txt
 ```
 
-No Mac/Linux, ative com `source .venv/bin/activate`.
+No Mac/Linux, ative com `source .venv/bin/activate`. O código fica em `programa\src`.
 
 ## Configuração
 
-Pela janela: atalho **AssistenteQuiz - Configuracao** (ou `configurar.bat`). Ela grava o `.env` e serve também para trocar uma chave depois.
+Pela janela: atalho **AssistenteQuiz - Configuracao** (ou `programa\configurar.bat`). Ela grava o `.env` (na pasta `programa`) e serve também para trocar uma chave depois.
 
 Ou na mão: copie o modelo e preencha.
 
 ```powershell
-Copy-Item .env.example .env
+Copy-Item programa\.env.example programa\.env
 ```
 
 O arquivo `.env` **nunca** vai para o Git (está no `.gitignore`). Se uma chave vazar, revogue-a na hora no painel do provedor.
@@ -116,7 +116,7 @@ Os planos gratuitos têm limites e **mudam sem aviso**. Confirme os valores atua
 
 ## Como usar
 
-**Dê dois cliques no atalho `AssistenteQuiz`** (ou em `iniciar.bat`, na pasta do projeto). Ele:
+**Dê dois cliques no atalho `AssistenteQuiz`** (ou em `programa\iniciar.bat`). Ele:
 
 1. abre o navegador do assistente, se ainda não estiver aberto: o Chrome ou, se não houver, o Edge (com a porta de depuração 9222 e um perfil próprio, `chrome-assistente`, na sua pasta de usuário, fora do projeto);
 2. abre uma janelinha no canto inferior direito da tela, sempre por cima das outras;
@@ -138,7 +138,7 @@ Ela também mostra `Aguardando questão…`, `Consultando a IA…` (assim você 
 **Pelo terminal**, na raiz do projeto, dá o mesmo resultado:
 
 ```powershell
-$env:PYTHONPATH = "src"
+$env:PYTHONPATH = "programa\src"
 .\.venv\Scripts\python.exe -m quizbot.main
 ```
 
@@ -146,7 +146,7 @@ Se o programa não achar o Chrome nem o Edge, a janela de configuração pede o 
 
 ## Adaptar a outro site
 
-Os seletores do site ficam em `src/quizbot/config.py`. O padrão atual serve para quizzes do **Moodle**.
+Os seletores do site ficam em `programa/src/quizbot/config.py`. O padrão atual serve para quizzes do **Moodle**.
 
 1. Abra uma questão no Chrome e aperte `F12`.
 2. Use a setinha do painel para clicar no enunciado e suba até o bloco que contém o enunciado e as alternativas.
@@ -157,30 +157,32 @@ Os seletores do site ficam em `src/quizbot/config.py`. O padrão atual serve par
 
 ```
 AssistenteQuiz/
-├── src/quizbot/
-│   ├── models.py          Question, Imagem e Suggestion (dataclasses imutáveis)
-│   ├── config.py          seletores CSS, intervalo, provedores de IA
-│   ├── page_reader.py     SÓ LEITURA: lê a questão de todas as abas e iframes
-│   ├── html_texto.py      HTML da questão → texto (fórmulas e marcadores de imagem)
-│   ├── formulas.py        MathML → texto linear (x^2, (a)/(b), sqrt(x))
-│   ├── presenter.py       contrato Presenter e TerminalPresenter
-│   ├── janela.py          JanelaPresenter: a janelinha (tkinter)
-│   ├── chrome.py          abre o navegador do assistente (Chrome ou Edge) com a porta de depuração
-│   ├── configurar.py      a janela de configuração (grava o .env)
-│   ├── assistente.py      o laço: observar → mudou? → solver → presenter
-│   ├── main.py            conecta ao Chrome e monta as peças
-│   └── solvers/
-│       ├── base.py        Solver (classe abstrata) e SolverError
-│       ├── api.py         ApiSolver: um provedor de IA
-│       ├── fallback.py    FallbackSolver: tenta um, depois o próximo
-│       └── fabrica.py     monta os solvers a partir do .env
-├── 1-INSTALAR.bat         duplo clique: instala tudo (Python, componentes, atalhos)
-├── instalar.ps1           o instalador em si (chamado pelo 1-INSTALAR.bat)
-├── iniciar.bat            duplo clique: abre o navegador e a janelinha
-├── configurar.bat         duplo clique: janela das chaves de IA
-├── LEIA-ME.txt            passo a passo para quem não programa
-├── .env.example           modelo do .env
-└── requirements.txt
+├── 1-INSTALAR.bat             duplo clique: instala tudo (Python, componentes, atalhos)
+├── LEIA-ME.txt                passo a passo para quem não programa
+├── programa/                  tudo o que o programa precisa (ninguém precisa abrir)
+│   ├── instalar.ps1           o instalador em si (chamado pelo 1-INSTALAR.bat)
+│   ├── iniciar.bat            abre o navegador e a janelinha
+│   ├── configurar.bat         janela das chaves de IA
+│   ├── requirements.txt       componentes que o programa usa
+│   ├── .env.example           modelo do .env (o .env fica aqui, fora do Git)
+│   └── src/quizbot/
+│       ├── models.py          Question, Imagem e Suggestion (dataclasses imutáveis)
+│       ├── config.py          seletores CSS, intervalo, provedores de IA
+│       ├── page_reader.py     SÓ LEITURA: lê a questão de todas as abas e iframes
+│       ├── html_texto.py      HTML da questão → texto (fórmulas e marcadores de imagem)
+│       ├── formulas.py        MathML → texto linear (x^2, (a)/(b), sqrt(x))
+│       ├── presenter.py       contrato Presenter e TerminalPresenter
+│       ├── janela.py          JanelaPresenter: a janelinha (tkinter)
+│       ├── chrome.py          abre o navegador do assistente (Chrome ou Edge) com a porta de depuração
+│       ├── configurar.py      a janela de configuração (grava o .env)
+│       ├── assistente.py      o laço: observar → mudou? → solver → presenter
+│       ├── main.py            conecta ao navegador e monta as peças
+│       └── solvers/
+│           ├── base.py        Solver (classe abstrata) e SolverError
+│           ├── api.py         ApiSolver: um provedor de IA
+│           ├── fallback.py    FallbackSolver: tenta um, depois o próximo
+│           └── fabrica.py     monta os solvers a partir do .env
+├── README.md, LICENSE, CLAUDE.md, .gitignore, .gitattributes   (para quem mexe no código)
 ```
 
 ## Decisões de projeto

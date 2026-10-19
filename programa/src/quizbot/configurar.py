@@ -15,9 +15,8 @@ from tkinter import filedialog, ttk
 from dotenv import dotenv_values
 
 from quizbot.chrome import achar_navegador
-from quizbot.config import ORDEM_PADRAO, PROVEDORES, Provedor
+from quizbot.config import ARQUIVO_ENV, ORDEM_PADRAO, PROVEDORES, Provedor
 
-ARQUIVO_ENV = Path(__file__).resolve().parents[2] / ".env"
 LARGURA_TEXTO = 560
 
 

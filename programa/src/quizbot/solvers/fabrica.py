@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from quizbot.config import (
+    ARQUIVO_ENV,
     COOLDOWN_PROVEDOR,
     ORDEM_PADRAO,
     PROVEDORES,
@@ -46,7 +47,7 @@ def _criar(provedor: Provedor) -> ApiSolver | None:
 
 
 def montar_solver() -> Solver:
-    load_dotenv()
+    load_dotenv(ARQUIVO_ENV)
     ordem = os.getenv("ORDEM_PROVEDORES", ORDEM_PADRAO)
 
     solvers: list[Solver] = []
