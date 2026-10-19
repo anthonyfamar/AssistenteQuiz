@@ -18,15 +18,19 @@ PADRAO_PREFIXO_ALTERNATIVA = r"^[a-zA-Z][.)]\s+"
 
 INTERVALO_POLLING = 0.5 
 
-# Chrome do assistente: aberto com a porta de depuracao e um perfil separado, fora
-# do projeto (guarda o login do usuario). O programa abre o Chrome se precisar.
+# Navegador do assistente: Chrome (ou o Edge, que ja vem no Windows), aberto com a porta
+# de depuracao e um perfil separado, fora do projeto (guarda o login do usuario).
+# O programa abre o navegador se precisar. Para indicar o caminho na mao, ponha
+# CAMINHO_NAVEGADOR no .env (a janela de configuracao faz isso).
 PORTA_DEBUG = 9222
 URL_CDP = f"http://localhost:{PORTA_DEBUG}"
-PERFIL_CHROME = Path.home() / "chrome-assistente"
-CAMINHOS_CHROME = (
+PERFIL_NAVEGADOR = Path.home() / "chrome-assistente"
+CAMINHOS_NAVEGADOR = (
     Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Google/Chrome/Application/chrome.exe",
     Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")) / "Google/Chrome/Application/chrome.exe",
     Path(os.environ.get("LOCALAPPDATA", "")) / "Google/Chrome/Application/chrome.exe",
+    Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")) / "Microsoft/Edge/Application/msedge.exe",
+    Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Microsoft/Edge/Application/msedge.exe",
 )
 
 
@@ -42,11 +46,18 @@ class Provedor:
     modelo_visao_env: str
     so_free: bool = False
     max_imagens: int = 5
+    rotulo: str = ""
+    dica: str = ""
+    url_chave: str = ""
+    modelo_sugerido: str = ""
+    modelo_visao_sugerido: str = ""
 
 
 # modelo_visao_env = modelo usado nas questoes COM imagem (precisa enxergar). Se ficar
 # vazio no .env, o provedor so e usado em questoes sem imagem.
 # max_imagens = limite de imagens por pedido que o provedor aceita.
+# rotulo, dica, url_chave e os modelos sugeridos alimentam a janela de configuracao
+# (configurar.py). Os nomes de modelo mudam com o tempo: a janela deixa editar.
 PROVEDORES = {
     "gemini": Provedor(
         "gemini",
@@ -54,6 +65,11 @@ PROVEDORES = {
         "GEMINI_API_KEY",
         "GEMINI_MODEL",
         "GEMINI_MODEL_VISAO",
+        rotulo="Gemini (Google)",
+        dica="Recomendado e gratuito. Basta ter uma conta Google. Esta chave ja e suficiente.",
+        url_chave="https://aistudio.google.com/apikey",
+        modelo_sugerido="gemini-3.8-flash",
+        modelo_visao_sugerido="gemini-3.8-flash",
     ),
     "groq": Provedor(
         "groq",
@@ -62,6 +78,11 @@ PROVEDORES = {
         "GROQ_MODEL",
         "GROQ_MODEL_VISAO",
         max_imagens=3,
+        rotulo="Groq",
+        dica="Opcional (reserva). Gratuito.",
+        url_chave="https://console.groq.com/keys",
+        modelo_sugerido="openai/gpt-oss-120b",
+        modelo_visao_sugerido="qwen/qwen3.8-27b",
     ),
     "openrouter": Provedor(
         "openrouter",
@@ -70,6 +91,11 @@ PROVEDORES = {
         "OPENROUTER_MODEL",
         "OPENROUTER_MODEL_VISAO",
         so_free=True,
+        rotulo="OpenRouter",
+        dica="Opcional (reserva). Use so modelos terminados em :free e nao compre creditos.",
+        url_chave="https://openrouter.ai/keys",
+        modelo_sugerido="google/gemma-4-31b-it:free",
+        modelo_visao_sugerido="google/gemma-4-31b-it:free",
     ),
     "ollama-cloud": Provedor(
         "ollama-cloud",
@@ -77,6 +103,10 @@ PROVEDORES = {
         "OLLAMA_API_KEY",
         "OLLAMA_CLOUD_MODEL",
         "OLLAMA_CLOUD_MODEL_VISAO",
+        rotulo="Ollama Cloud",
+        dica="Opcional (reserva). Nao adicione creditos.",
+        url_chave="https://ollama.com/settings/keys",
+        modelo_sugerido="gemma4:31b",
     ),
 }
 
