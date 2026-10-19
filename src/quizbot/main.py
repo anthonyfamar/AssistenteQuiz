@@ -34,10 +34,10 @@ def trabalhar(solver: Solver, presenter: Presenter, parar: threading.Event) -> N
         try:
             navegador = playwright.chromium.connect_over_cdp(URL_CDP)
         except PlaywrightError:
-            presenter.avisar(f"Nao consegui conectar ao Chrome em {URL_CDP}.")
+            presenter.avisar(f"Nao consegui conectar ao navegador em {URL_CDP}.")
             return
         if not navegador.contexts:
-            presenter.avisar("O Chrome esta aberto, mas sem nenhuma janela. Abra uma aba.")
+            presenter.avisar("O navegador esta aberto, mas sem nenhuma janela. Abra uma aba.")
             return
 
         assistente = AssistenteQuiz(
@@ -47,12 +47,12 @@ def trabalhar(solver: Solver, presenter: Presenter, parar: threading.Event) -> N
             intervalo=INTERVALO_POLLING,
             parar=parar,
         )
-        print("Conectado ao Chrome. Assistente rodando.")
+        print("Conectado ao navegador. Assistente rodando.")
         try:
             assistente.rodar()
         except (NavegadorFechado, PlaywrightError):
             if not parar.is_set():
-                presenter.avisar("O Chrome foi fechado. Encerrado.")
+                presenter.avisar("O navegador foi fechado. Encerrado.")
 
 
 def main() -> None:
