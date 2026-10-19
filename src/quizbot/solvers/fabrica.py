@@ -60,6 +60,9 @@ def montar_solver() -> Solver:
             solvers.append(solver)
 
     if not solvers:
-        raise SolverError("nenhum provedor configurado. Preencha o .env (veja o .env.example).")
+        raise SolverError(
+            "nenhuma chave de IA configurada. Use o atalho 'AssistenteQuiz - Configuracao' "
+            "(ou o arquivo configurar.bat) e cole a sua chave."
+        )
     print("Provedores ativos:", ", ".join(s.nome for s in solvers))
     return FallbackSolver(solvers, cooldown=COOLDOWN_PROVEDOR)
