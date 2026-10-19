@@ -1,2 +1,8 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Arquivos do Windows precisam de fim de linha CRLF. Sem isto, o ZIP baixado do GitHub
+# pode trazer os .bat com LF e eles falham de formas estranhas.
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+LEIA-ME.txt text eol=crlf
