@@ -1,0 +1,125 @@
+﻿ASSISTENTEQUIZ - LEIA-ME
+========================
+
+O QUE É
+-------
+O AssistenteQuiz lê a questão que está na tela do navegador e mostra, numa janelinha no
+canto da tela, a alternativa que uma inteligência artificial (IA) sugere, com uma
+explicação curta. Quem decide e clica é sempre você. O programa só lê, nunca clica.
+Ele entende fórmulas e também questões com imagem.
+
+USE COM RESPONSABILIDADE
+------------------------
+Use em atividades de TREINO, ou onde o uso de IA for permitido pelo professor e pela
+instituição. Em avaliações que valem nota, sem essa permissão, não use: pode ser
+considerado fraude, e a responsabilidade é sua.
+
+
+PARA INSTALAR (só na primeira vez)
+----------------------------------
+Você precisa de: Windows 10 ou 11 e internet. NÃO precisa ter Python nem nada instalado.
+
+ 1. Se você baixou um arquivo .zip, clique nele com o botão direito e escolha
+    "Extrair tudo...". Depois abra a pasta que foi criada.
+
+ 2. Dê dois cliques em  1-INSTALAR.bat
+
+    Se aparecer uma tela azul escrita "O Windows protegeu o computador":
+    clique em "Mais informações" e depois em "Executar assim mesmo".
+    Isso acontece com qualquer arquivo baixado da internet.
+
+ 3. Espere uns 3 a 5 minutos. O instalador baixa o que for preciso. Não feche a
+    janela preta enquanto ela estiver trabalhando.
+
+ 4. Vai abrir uma janela chamada "Configuração". Cole nela a sua chave de IA
+    (veja "COMO CONSEGUIR A CHAVE" logo abaixo) e clique em Salvar.
+
+ 5. Pronto! Na área de trabalho vão aparecer dois atalhos:
+      - AssistenteQuiz                  (para usar)
+      - AssistenteQuiz - Configuracao   (para trocar a chave depois)
+
+
+PARA USAR
+---------
+ 1. Dê dois cliques no atalho "AssistenteQuiz".
+ 2. Abre uma janela do navegador (Chrome, ou Edge se você não tiver o Chrome) e uma
+    janelinha no canto da tela.
+ 3. No navegador, entre no site da sua atividade (faça o login normalmente) e abra
+    uma questão.
+ 4. A janelinha mostra a sugestão, por exemplo:
+        C - Brasília
+        A capital oficial do Brasil é Brasília.
+    Se a IA ainda estiver pensando, aparece "Consultando a IA...".
+ 5. Para encerrar, feche a janelinha. O navegador pode continuar aberto.
+
+Na primeira vez, o navegador do assistente começa "vazio": entre no site de novo.
+Nas próximas vezes, o login costuma ficar guardado.
+
+
+COMO CONSEGUIR A CHAVE (GEMINI, GRATUITO)
+-----------------------------------------
+A chave é uma senha comprida que permite ao programa falar com a IA. Uma só já basta.
+
+ 1. Na janela de Configuração, clique em "Como conseguir" ao lado de "Gemini (Google)".
+    O navegador abre a página do Google AI Studio.
+ 2. Entre com a sua conta Google.
+ 3. Clique no botão para criar a chave de API (algo como "Criar chave de API" ou
+    "Create API key"; o nome do botão pode mudar um pouco com o tempo).
+ 4. Copie a chave (um texto comprido, em geral começando com "AIza") e cole no campo
+    do Gemini na janela de Configuração.
+
+IMPORTANTE:
+ - NÃO ative cobrança e NÃO cadastre cartão. O programa foi feito para usar só o que
+   é gratuito. Se a cota gratuita acabar, ele avisa; não cobra nada.
+ - No plano gratuito do Gemini, o que você envia pode ser usado pelo Google para melhorar
+   os produtos dele. Não use com dados pessoais.
+ - Guarde a chave em segredo. Quem tiver a chave usa a sua cota. Se ela vazar, apague-a
+   no site onde foi criada e crie outra.
+
+As outras chaves (Groq, OpenRouter, Ollama Cloud) são OPCIONAIS. Servem de reserva:
+se o Gemini falhar ou a cota acabar, o programa tenta a próxima. Cada uma tem o seu
+botão "Como conseguir".
+
+
+SE ALGO DER ERRADO
+------------------
+ - Aviso "nenhuma chave de IA configurada":
+   abra o atalho "AssistenteQuiz - Configuracao" e cole a chave.
+
+ - Aviso com "404" ou "not found":
+   o nome do modelo de IA ficou desatualizado. Abra "AssistenteQuiz - Configuracao",
+   marque "Opções avançadas (modelos)" e corrija o nome do modelo (veja o nome atual
+   no site do provedor).
+
+ - Aviso com "429" ou "quota":
+   a cota gratuita do momento acabou. Espere um pouco, ou cadastre também a chave de
+   outro provedor para servir de reserva.
+
+ - A janelinha diz que o navegador abriu "sem a porta de depuração":
+   feche TODAS as janelas do navegador que o assistente abriu e abra o atalho de novo.
+
+ - A janelinha não mostra nada na questão:
+   o programa vem preparado para sites de atividades do tipo Moodle. Em outros sites,
+   ele pode não conseguir ler a questão.
+
+ - Aviso dizendo que não conseguiu ler uma imagem:
+   a imagem da questão não pôde ser baixada. Responda essa questão por conta própria.
+
+ - A janela preta fecha sozinha ou mostra erros vermelhos:
+   tire uma foto da tela e peça ajuda a quem te passou o programa.
+
+
+PARA TROCAR A CHAVE DEPOIS
+--------------------------
+Abra o atalho "AssistenteQuiz - Configuracao", cole a nova chave e clique em Salvar.
+
+
+PARA DESINSTALAR
+----------------
+ 1. Apague a pasta do AssistenteQuiz e os dois atalhos da área de trabalho.
+ 2. (Opcional) Apague a pasta "chrome-assistente", que fica dentro da sua pasta de
+    usuário (C:\Users\SEU-NOME). Ela guarda o login do navegador do assistente.
+ 3. (Opcional) Apague a pasta C:\Users\SEU-NOME\AppData\Local\AssistenteQuiz. Ela guarda
+    os componentes do programa (e o Python, se o instalador precisou instalá-lo).
+    Se o instalador instalou o Python, ele também aparece em Configurações >
+    Aplicativos como "Python 3.13", e você pode desinstalá-lo por lá.
