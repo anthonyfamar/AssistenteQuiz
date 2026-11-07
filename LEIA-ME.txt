@@ -11,8 +11,7 @@ Ele entende fórmulas e também questões com imagem.
 USE COM RESPONSABILIDADE
 ------------------------
 Use em atividades de TREINO, ou onde o uso de IA for permitido pelo professor e pela
-instituição. Em avaliações que valem nota, sem essa permissão, não use: pode ser
-considerado fraude, e a responsabilidade é sua.
+instituição.
 
 
 PARA INSTALAR (só na primeira vez)
