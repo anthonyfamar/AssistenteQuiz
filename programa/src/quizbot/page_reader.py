@@ -15,6 +15,11 @@
 #               para saber de qual sao as alternativas, entao fica quieto.
 #               Se a questao esta na tela mas uma imagem nao pode ser lida, levanta
 #               LeituraIncompleta (melhor avisar do que a IA responder sem ver).
+#               ler_revisao() -> na pagina de REVISAO (depois de enviar), le todas as
+#               questoes que o Moodle marcou como certas/erradas e devolve uma lista de
+#               Resultado (questao + alternativa marcada + acertou). Lista vazia se a
+#               pagina nao for uma revisao. Uma questao cuja imagem nao pode ser lida
+#               e pulada (nao vale chutar a chave dela).
 #
 # Os seletores CSS de cada site ficam no config.py.
 import base64
@@ -25,13 +30,16 @@ from playwright.sync_api import BrowserContext, Frame
 from playwright.sync_api import Error as PlaywrightError
 
 from quizbot.config import (
+    CLASSE_CORRETA,
     MAX_BYTES_IMAGEM,
     PADRAO_PREFIXO_ALTERNATIVA,
     SELETOR_ALTERNATIVAS,
     SELETOR_ENUNCIADO,
+    SELETOR_MARCADAS,
+    SELETOR_QUESTAO,
 )
 from quizbot.html_texto import ImagemRef, ResultadoHtml, converter_html
-from quizbot.models import Imagem, Question
+from quizbot.models import Imagem, Question, Resultado
 
 _PREFIXO = re.compile(PADRAO_PREFIXO_ALTERNATIVA)
 
@@ -47,6 +55,39 @@ el => {
 }
 """
 _JS_COPIA_LISTA = "els => els.map(" + _JS_COPIA.strip() + ")"
+
+# Le UM bloco de questao da revisao (a copia e feita num documento inerte, como acima).
+# Devolve o HTML do enunciado, o das alternativas, o indice da alternativa marcada e se o
+# Moodle a deu como certa; ou null se o bloco nao tiver nada marcado.
+_JS_REVISAO = """
+(que, s) => {
+    const inerte = document.implementation.createHTMLDocument('');
+    const copiar = el => {
+        const copia = inerte.importNode(el, true);
+        copia.querySelectorAll('img[data-mathml]').forEach(i => i.removeAttribute('src'));
+        return copia.innerHTML;
+    };
+    const enunciado = que.querySelector(s.enunciado);
+    const rotulos = Array.from(que.querySelectorAll(s.alternativas));
+    const marcada = que.querySelector(s.marcadas);
+    if (!enunciado || rotulos.length === 0 || !marcada) return null;
+    const rotulo = marcada.matches('label') ? marcada : marcada.querySelector('label');
+    const indice = rotulos.indexOf(rotulo);
+    if (indice < 0) return null;
+    return {
+        enunciado: copiar(enunciado),
+        alternativas: rotulos.map(copiar),
+        indice: indice,
+        acertou: marcada.classList.contains(s.classeCorreta),
+    };
+}
+"""
+_SELETORES_REVISAO = {
+    "enunciado": SELETOR_ENUNCIADO,
+    "alternativas": SELETOR_ALTERNATIVAS,
+    "marcadas": SELETOR_MARCADAS,
+    "classeCorreta": CLASSE_CORRETA,
+}
 
 # Baixa uma imagem usando a sessao do proprio navegador (cookies). Nao rola a pagina.
 _JS_BAIXAR = """
@@ -70,6 +111,18 @@ class NavegadorFechado(Exception):
 
 class LeituraIncompleta(Exception):
     """A questao esta na tela, mas nao deu para le-la por inteiro (ex.: uma imagem)."""
+
+
+_MARCA_IMAGEM = re.compile(r"\[imagem (\d+)\]")
+
+
+def _assinatura(texto: str, por_numero: dict[int, Imagem]) -> str:
+    # Troca cada "[imagem N]" por "[img:codigo]" (o codigo vem dos bytes da imagem).
+    def trocar(achado: re.Match) -> str:
+        imagem = por_numero.get(int(achado.group(1)))
+        return f"[img:{imagem.codigo}]" if imagem else achado.group(0)
+
+    return _MARCA_IMAGEM.sub(trocar, texto)
 
 
 def _tipo_da_imagem(dados: bytes) -> str:
@@ -144,6 +197,20 @@ class PageReader:
         self._cache_imagens[chave] = imagem
         return imagem
 
+    def _montar(
+        self, quadro: Frame, enunciado: ResultadoHtml, alternativas: list[ResultadoHtml]
+    ) -> Question:
+        refs = list(enunciado.imagens) + [ref for alt in alternativas for ref in alt.imagens]
+        imagens = tuple(self._baixar(quadro, ref) for ref in refs)
+        por_numero = {ref.numero: imagem for ref, imagem in zip(refs, imagens)}
+        textos = tuple(_PREFIXO.sub("", alt.texto) for alt in alternativas)
+        return Question(
+            enunciado=enunciado.texto,
+            alternativas=textos,
+            imagens=imagens,
+            assinaturas=tuple(_assinatura(texto, por_numero) for texto in textos),
+        )
+
     def _ler_quadro(self, quadro: Frame) -> Question | None:
         enunciado = self._ler_enunciado(quadro)
         if enunciado is None or not enunciado.texto:
@@ -151,13 +218,33 @@ class PageReader:
         alternativas = self._ler_alternativas(quadro, primeiro=1 + len(enunciado.imagens))
         if not alternativas:
             return None
+        return self._montar(quadro, enunciado, alternativas)
 
-        refs = list(enunciado.imagens) + [ref for alt in alternativas for ref in alt.imagens]
-        return Question(
-            enunciado=enunciado.texto,
-            alternativas=tuple(_PREFIXO.sub("", alt.texto) for alt in alternativas),
-            imagens=tuple(self._baixar(quadro, ref) for ref in refs),
-        )
+    def _ler_revisao_quadro(self, quadro: Frame) -> list[Resultado]:
+        # Conferencia barata antes de ler: sem nada marcado como certo/errado, nao e revisao.
+        if quadro.locator(SELETOR_MARCADAS).count() == 0:
+            return []
+        blocos = quadro.locator(SELETOR_QUESTAO)
+        resultados = []
+        for i in range(blocos.count()):
+            dados = blocos.nth(i).evaluate(_JS_REVISAO, _SELETORES_REVISAO, timeout=2000)
+            if dados is None:
+                continue
+            enunciado = converter_html(dados["enunciado"])
+            if not enunciado.texto:
+                continue
+            primeiro = 1 + len(enunciado.imagens)
+            alternativas = []
+            for html in dados["alternativas"]:
+                alternativa = converter_html(html, primeiro)
+                primeiro += len(alternativa.imagens)
+                alternativas.append(alternativa)
+            try:
+                questao = self._montar(quadro, enunciado, alternativas)
+            except LeituraIncompleta:
+                continue
+            resultados.append(Resultado(questao, dados["indice"], dados["acertou"]))
+        return resultados
 
     def ler_questao(self) -> Question | None:
         for quadro in self._quadros():
@@ -169,3 +256,14 @@ class PageReader:
             if questao is not None:
                 return questao
         return None
+
+    def ler_revisao(self) -> list[Resultado]:
+        for quadro in self._quadros():
+            try:
+                resultados = self._ler_revisao_quadro(quadro)
+            except PlaywrightError:
+                self._checar_conexao()
+                continue
+            if resultados:
+                return resultados
+        return []
