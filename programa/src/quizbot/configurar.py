@@ -5,7 +5,10 @@
 # So a chave de UM provedor e obrigatoria (o Gemini e o recomendado). Os modelos ja vem
 # sugeridos e ficam escondidos em "Opcoes avancadas". Se o Chrome e o Edge nao forem
 # achados, a janela pede o caminho do navegador.
-# Ao salvar, o .env e reescrito: a ORDEM_PROVEDORES que ja existia e mantida.
+# Tem tambem um campo (opcional) para a SENHA DA MEMORIA: com ela os PCs dividem o que
+# aprenderam (certas e erradas). Sem ela, a memoria fica so neste PC.
+# Ao salvar, o .env e reescrito: a ORDEM_PROVEDORES que ja existia e mantida, e tambem
+# AUTOMATICO, AUTOMATICO_FINALIZAR e NOME_PC, se estiverem la.
 import re
 import tkinter as tk
 import webbrowser
@@ -18,6 +21,12 @@ from quizbot.chrome import achar_navegador
 from quizbot.config import ARQUIVO_ENV, ORDEM_PADRAO, PROVEDORES, Provedor
 
 LARGURA_TEXTO = 560
+CHAVES_MANTIDAS = ("AUTOMATICO", "AUTOMATICO_FINALIZAR", "NOME_PC")
+
+
+def valor_env(valor: str) -> str:
+    """Escreve um valor no .env entre aspas simples, protegendo \\ e ' (o dotenv desfaz)."""
+    return "'" + valor.replace("\\", "\\\\").replace("'", "\\'") + "'"
 
 
 class JanelaConfiguracao:
@@ -54,6 +63,9 @@ class JanelaConfiguracao:
         self._quadros_avancados: list[ttk.Frame] = []
         for provedor in PROVEDORES.values():
             self._criar_bloco(corpo, provedor)
+
+        self._senha = tk.StringVar(value=self._atuais.get("MEMORIA_SENHA") or "")
+        self._criar_bloco_memoria(corpo)
 
         self._navegador = tk.StringVar(value=self._atuais.get("CAMINHO_NAVEGADOR") or "")
         self._criar_bloco_navegador(corpo)
@@ -114,6 +126,23 @@ class JanelaConfiguracao:
         ttk.Label(avancado, text="Modelo (com imagem):").grid(row=1, column=0, sticky="w")
         ttk.Entry(avancado, textvariable=visao, width=40).grid(row=1, column=1, padx=6, pady=2)
         self._quadros_avancados.append(avancado)
+
+    def _criar_bloco_memoria(self, pai: ttk.Frame) -> None:
+        quadro = ttk.LabelFrame(pai, text="Memoria compartilhada (opcional)", padding=8)
+        quadro.pack(fill="x", pady=4)
+        ttk.Label(
+            quadro,
+            text=(
+                "Digite a senha da memoria para este computador usar o que os outros ja "
+                "aprenderam (respostas certas e erradas). Se nao souber, deixe em branco: "
+                "o assistente funciona do mesmo jeito, so com a memoria deste computador."
+            ),
+            wraplength=LARGURA_TEXTO - 20,
+            justify="left",
+        ).pack(anchor="w")
+        entrada = ttk.Entry(quadro, textvariable=self._senha, show="*", width=54)
+        entrada.pack(anchor="w", pady=(4, 0))
+        self._entradas_chave.append(entrada)
 
     def _criar_bloco_navegador(self, pai: ttk.Frame) -> None:
         manual = self._navegador.get().strip().strip('"')
@@ -197,6 +226,14 @@ class JanelaConfiguracao:
         if ativos == 0:
             self._erro("Cole a chave de pelo menos um provedor. O Gemini e o mais facil.")
             return
+
+        senha = self._senha.get().strip()
+        if senha:
+            linhas += ["", "# Senha da memoria compartilhada (nuvem)", f"MEMORIA_SENHA={valor_env(senha)}"]
+
+        mantidas = [f"{nome}={self._atuais[nome]}" for nome in CHAVES_MANTIDAS if self._atuais.get(nome)]
+        if mantidas:
+            linhas += ["", "# Mantidas de antes", *mantidas]
 
         navegador = self._navegador.get().strip().strip('"')
         if navegador:
