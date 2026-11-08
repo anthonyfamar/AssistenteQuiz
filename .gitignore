@@ -179,6 +179,11 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+# Chave de servico do Firebase (acesso total ao banco): nunca no Git
+firebase-chave*.json
+*firebase-adminsdk*.json
+# Memoria local do assistente (fica fora do projeto, isto e so garantia)
+memoria-*.json
 # Sessao salva do navegador (Playwright)
 .sessao_navegador/
 sessao.json
