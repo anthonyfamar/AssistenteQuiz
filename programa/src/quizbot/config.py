@@ -6,6 +6,7 @@
 # Os seletores abaixo sao do Moodle. Para outro site: F12 -> Inspecionar -> achar
 # o bloco da questao -> usar classes estaveis (nunca ids gerados a cada acesso).
 import os
+import socket
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,11 +18,47 @@ ARQUIVO_ENV = PASTA_PROGRAMA / ".env"
 # Seletores do Moodle.
 SELETOR_ENUNCIADO = ".que .qtext"
 SELETOR_ALTERNATIVAS = ".que .answer label"
+# Bolinhas (radio) das alternativas, na ordem da tela. O id e o name mudam a cada
+# tentativa e a cada questao, entao a alternativa e escolhida pela POSICAO.
+SELETOR_RADIOS = ".que .answer input[type=radio]"
+# Botao de avancar de pagina do Moodle.
+SELETOR_BOTAO_PROXIMA = "input.mod_quiz-next-nav"
+# Pagina de REVISAO (depois de enviar): cada bloco de questao e o que o Moodle marca como
+# certo/errado. O Moodle poe a classe "correct" ou "incorrect" na linha da alternativa
+# que foi marcada (so nela); as outras ficam sem classe e a resposta certa nao aparece.
+SELETOR_QUESTAO = ".que"
+SELETOR_MARCADAS = ".que .answer .correct, .que .answer .incorrect"
+CLASSE_CORRETA = "correct"
+# Finalizar a tentativa (so na pagina de resumo). Os ids mudam a cada acesso:
+# o botao da pagina e achado pelo texto, e o da janelinha pelo comeco do id.
+TEXTO_BOTAO_FINALIZAR = "Enviar tudo e terminar"
+SELETOR_CONFIRMAR_FINALIZAR = 'input[id^="id_yuiconfirmyes"]'
 
 # Tira o "a. " ou "b) " do comeco de cada alternativa (o presenter ja poe as letras).
 PADRAO_PREFIXO_ALTERNATIVA = r"^[a-zA-Z][.)]\s+"
 
-INTERVALO_POLLING = 0.5 
+INTERVALO_POLLING = 0.5
+
+# Modo automatico: segundos de espera depois de marcar a alternativa e antes de avancar
+# (da tempo de ver a marca na tela).
+PAUSA_APOS_CLICAR = 1.0
+
+# Memoria (respostas certas e erradas): tudo fica na pasta do usuario, fora do projeto e do
+# Git, ao lado do ambiente do instalador. Cada PC grava so o seu arquivo (memoria-<PC>.json).
+# Apague a pasta para recomecar.
+PASTA_USUARIO = Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "AssistenteQuiz"
+PASTA_MEMORIA = PASTA_USUARIO / "memoria"
+NOME_PC = socket.gethostname()  # pode ser trocado com NOME_PC no .env
+# Nuvem (Firebase/Firestore, plano gratuito Spark). O programa entra no banco com um
+# usuario unico (e-mail abaixo) e a SENHA, que fica so no .env de cada PC (MEMORIA_SENHA).
+# A "chave da API web" abaixo e PUBLICA por desenho: so identifica o projeto. Quem protege
+# o banco sao o login e as regras do Firestore, entao ela pode ficar no codigo.
+FIREBASE_PROJETO = "assistentequiz-853a4"
+FIREBASE_CHAVE_API = "AIzaSyDfEJ2gMArPdrQCTzhAuqhAHUCgjbmgl-k"
+MEMORIA_EMAIL = "memoria@assistentequiz.app"
+# De quanto em quanto tempo (segundos) a memoria relê o que os outros PCs aprenderam.
+# Cada leitura gasta so 1 leitura por PC das 50 mil diarias do plano gratuito.
+INTERVALO_SINCRONIA = 300.0
 
 # Navegador do assistente: Chrome (ou o Edge, que ja vem no Windows), aberto com a porta
 # de depuracao e um perfil separado, fora do projeto (guarda o login do usuario).
