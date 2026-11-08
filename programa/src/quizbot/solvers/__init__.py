@@ -6,5 +6,6 @@
 from quizbot.solvers.api import ApiSolver
 from quizbot.solvers.base import Solver, SolverError
 from quizbot.solvers.fallback import FallbackSolver
+from quizbot.solvers.memoria import SolverComMemoria
 
-__all__ = ["Solver", "SolverError", "ApiSolver", "FallbackSolver"]
+__all__ = ["Solver", "SolverError", "ApiSolver", "FallbackSolver", "SolverComMemoria"]
