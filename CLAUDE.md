@@ -65,11 +65,11 @@ python -m venv .venv
 pip install playwright python-dotenv openai
 ```
 
-**Estrutura de pastas:** na raiz ficam só `1-INSTALAR.bat`, `LEIA-ME.txt` e a pasta `programa/` (mais os arquivos de repositório: README, LICENSE, CLAUDE.md, `.gitignore`, `.gitattributes`). Dentro de `programa/` ficam `src/quizbot/`, `requirements.txt`, `.env.example`, `.env` (fora do Git), `instalar.ps1`, `iniciar.bat` e `configurar.bat`. Assim quem baixa o ZIP vê um único arquivo para abrir. A `.venv` de desenvolvimento continua na raiz (`..\.venv` para os `.bat`).
+**Estrutura de pastas:** na raiz ficam só `1-INSTALAR.bat`, `LEIA-ME.txt` e a pasta `programa/` (mais os arquivos de repositório: README, LICENSE, CLAUDE.md, `.gitignore`, `.gitattributes`). Dentro de `programa/` ficam `src/quizbot/`, `requirements.txt`, `.env.example`, `.env` (fora do Git), `instalar.ps1`, `iniciar.pyw` e `configurar.bat`. Assim quem baixa o ZIP vê um único arquivo para abrir. A `.venv` de desenvolvimento continua na raiz (`..\.venv` para o `configurar.bat`).
 
 Para quem não programa: `1-INSTALAR.bat` (uma vez) e depois o atalho `AssistenteQuiz`. O `LEIA-ME.txt` explica o passo a passo.
 
-Para rodar: dois cliques em `programa\iniciar.bat`. Ele abre o navegador do assistente (porta de depuração 9222, perfil `chrome-assistente`), se precisar, e a janelinha. Faça login no site na janela do navegador.
+Para rodar: dois cliques no atalho `AssistenteQuiz` (ou em `programa\iniciar.pyw`, que abre sem janela preta). Ele abre a janelinha, que pergunta o modo (Automático ou Só sugerir), e o navegador do assistente (porta de depuração 9222, perfil `chrome-assistente`), se precisar. Faça login no site na janela do navegador.
 
 Pelo terminal, na raiz do projeto: `$env:PYTHONPATH = "programa\src"; .\.venv\Scripts\python.exe -m quizbot.main`
 
@@ -90,6 +90,6 @@ Atualizar este checklist a cada passo concluído.
 - [x] `config.py` e `main.py`
 - [x] `ApiSolver` e `FallbackSolver` (provedores gratuitos, `.env.example`, testado no site real)
 - [x] README completo (o que faz, como rodar, aviso educacional)
-- [x] `JanelaPresenter` com tkinter e `programa\iniciar.bat` (abre o navegador e a janela)
+- [x] `JanelaPresenter` com tkinter e `programa\iniciar.pyw` (abre o navegador e a janela)
 - [x] Instalador para leigos: `1-INSTALAR.bat`, `programa\instalar.ps1`, `configurar.py`, `LEIA-ME.txt` (testado numa cópia com Python instalado do zero; falta testar num Windows limpo)
 - [x] Fórmulas (Wiris) como texto e questões com imagem (modelo de visão por provedor)
