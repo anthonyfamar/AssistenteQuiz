@@ -97,13 +97,14 @@ function Install-Python {
     }
 }
 
-function New-Atalho($nome, $alvo, $descricao) {
+function New-Atalho($nome, $alvo, $descricao, $argumentos = "") {
     $shell = New-Object -ComObject WScript.Shell
     $atalho = $shell.CreateShortcut((Join-Path $PastaAtalhos "$nome.lnk"))
     $atalho.TargetPath = $alvo
+    if ($argumentos) { $atalho.Arguments = $argumentos }
     $atalho.WorkingDirectory = $Projeto
     $atalho.Description = $descricao
-    $atalho.WindowStyle = 7   # janela de texto minimizada (a janelinha do programa aparece normalmente)
+    $atalho.WindowStyle = 7   # janela de texto minimizada (so vale para os .bat; o pythonw nao tem janela de texto)
     $atalho.Save()
     Write-Host "Atalho criado: $nome"
 }
@@ -155,7 +156,11 @@ if (-not $SemConfig) {
 # 4. Atalhos
 if (-not $SemAtalhos) {
     Passo "Criando os atalhos na área de trabalho..."
-    New-Atalho "AssistenteQuiz" (Join-Path $Projeto "iniciar.bat") "Abre o AssistenteQuiz"
+    # Abre pelo pythonw (Python sem terminal): nao aparece janela preta. O que o programa
+    # conta vai para o registro (assistente.log).
+    $pythonw = Join-Path $PastaVenv "Scripts\pythonw.exe"
+    if (-not (Test-Path $pythonw)) { Falhar "Não achei o pythonw.exe no ambiente do programa." }
+    New-Atalho "AssistenteQuiz" $pythonw "Abre o AssistenteQuiz" ('"' + (Join-Path $Projeto "iniciar.pyw") + '"')
     New-Atalho "AssistenteQuiz - Configuracao" (Join-Path $Projeto "configurar.bat") "Colar ou trocar as chaves de IA"
 }
 
