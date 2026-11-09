@@ -1,13 +1,18 @@
-# MAIN - o ponto de entrada: e este arquivo que se executa (ou o iniciar.bat).
+# MAIN - o ponto de entrada: e este arquivo que se executa (pelo atalho ou pelo
+# iniciar.pyw, sem janela preta; ou, para ver as mensagens ao vivo, pelo terminal:
+# python -m quizbot.main com PYTHONPATH=programa\src).
 #
-# Abre a janelinha, garante o Chrome do assistente aberto (porta de depuracao 9222)
-# e conecta a ele para ler a pagina e, no modo automatico, agir nela. O usuario faz
-# login sozinho, sem senha em codigo ou .env. Monta as pecas (PageReader, Solver,
-# Presenter e, se AUTOMATICO nao for "nao", o Responder) e entrega ao AssistenteQuiz.
+# Abre a janelinha, que mostra primeiro a tela de escolha do modo:
+#   - Automatico: o programa faz tudo (marca, avanca, envia, confere a revisao, refaz as
+#     tentativas e volta ao curso);
+#   - So sugerir: so mostra a sugestao; o usuario faz o resto.
+# Depois da escolha garante o Chrome do assistente aberto (porta de depuracao 9222) e
+# conecta a ele. O usuario faz login sozinho, sem senha em codigo ou .env. Monta as pecas
+# (PageReader, Solver, Presenter e, no Automatico, o Responder) e entrega ao AssistenteQuiz.
 #
-# Chaves do .env (valem "sim" se faltarem): AUTOMATICO (marca e avanca) e
-# AUTOMATICO_FINALIZAR (envia a tentativa). Sao lidas DEPOIS de montar_solver(), que
-# e quem carrega o .env.
+# Registro (log): tudo que o programa imprime vai para o arquivo assistente.log (veja
+# registro.py). Se algo quebrar, a janelinha mostra so "algo deu errado" e a pasta do
+# registro; os detalhes ficam la.
 #
 # Threads: a janela (tkinter) fica na thread principal; o assistente (Playwright,
 # IA, leitura) roda em outra, porque o Playwright sincrono precisa ser criado e usado
@@ -18,20 +23,22 @@ import threading
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import sync_playwright
 
-from quizbot.assistente import AssistenteQuiz
-from quizbot.chrome import ChromeError, garantir_chrome
+from quizbot import registro
 from quizbot.armazenamento import (
     Armazenamento,
     ArmazenamentoEspelhado,
     ArmazenamentoFirestore,
     ArmazenamentoLocal,
 )
+from quizbot.assistente import AssistenteQuiz
+from quizbot.chrome import ChromeError, garantir_chrome
 from quizbot.config import (
     FIREBASE_CHAVE_API,
     FIREBASE_PROJETO,
     INTERVALO_POLLING,
     MEMORIA_EMAIL,
     NOME_PC,
+    PASTA_LOGS,
     PASTA_MEMORIA,
     URL_CDP,
 )
@@ -42,12 +49,6 @@ from quizbot.presenter import Presenter
 from quizbot.responder import Responder
 from quizbot.solvers import Solver, SolverComMemoria, SolverError
 from quizbot.solvers.fabrica import montar_solver
-
-
-def _ligado(nome: str) -> bool:
-    # Chave faltando ou vazia vale "sim"; so desliga com um destes valores.
-    valor = os.getenv(nome, "").strip().lower() or "sim"
-    return valor not in ("nao", "não", "n", "0", "false", "off")
 
 
 def _montar_memoria() -> Memoria:
@@ -72,7 +73,6 @@ def trabalhar(
     presenter: Presenter,
     parar: threading.Event,
     automatico: bool,
-    finalizar: bool,
     memoria: Memoria,
 ) -> None:
     try:
@@ -100,14 +100,11 @@ def trabalhar(
             intervalo=INTERVALO_POLLING,
             parar=parar,
             responder=Responder(contexto) if automatico else None,
-            finalizar=finalizar,
+            finalizar=automatico,
             memoria=memoria,
+            tentativas=automatico,
         )
-        print(
-            "Conectado ao navegador. Assistente rodando "
-            f"(automatico: {'sim' if automatico else 'nao'}, "
-            f"finalizar: {'sim' if automatico and finalizar else 'nao'})."
-        )
+        print(f"Conectado ao navegador. Assistente rodando (modo {'automatico' if automatico else 'so sugerir'}).")
         try:
             assistente.rodar()
         except (NavegadorFechado, PlaywrightError):
@@ -115,7 +112,39 @@ def trabalhar(
                 presenter.avisar("O navegador foi fechado. Encerrado.")
 
 
-def main() -> None:
+def _trabalhar_com_registro(
+    janela: JanelaPresenter,
+    solver: Solver,
+    parar: threading.Event,
+    automatico: bool,
+    memoria: Memoria,
+) -> None:
+    # Erro que ninguem previu: vai inteiro para o registro e a janelinha so avisa.
+    try:
+        trabalhar(solver, janela, parar, automatico, memoria)
+    except Exception:
+        registro.registrar_erro("o assistente parou por um erro inesperado")
+        janela.erro_inesperado(str(PASTA_LOGS))
+
+
+def _erro_ao_abrir() -> None:
+    # Se nem a janelinha abriu, o jeito de avisar e uma caixa de mensagem simples.
+    try:
+        import tkinter as tk
+        from tkinter import messagebox
+
+        raiz = tk.Tk()
+        raiz.withdraw()
+        messagebox.showerror(
+            "AssistenteQuiz",
+            f"Algo deu errado ao abrir o AssistenteQuiz.\n\nOs detalhes estao em:\n{PASTA_LOGS}",
+        )
+        raiz.destroy()
+    except Exception:
+        pass
+
+
+def _executar() -> None:
     parar = threading.Event()
     janela = JanelaPresenter(ao_fechar=parar.set)
 
@@ -126,24 +155,40 @@ def main() -> None:
         janela.executar()
         return
 
-    automatico = _ligado("AUTOMATICO")
-    finalizar = _ligado("AUTOMATICO_FINALIZAR")
     memoria = _montar_memoria()
     solver = SolverComMemoria(solver, memoria)
-    thread = threading.Thread(
-        target=trabalhar,
-        args=(solver, janela, parar, automatico, finalizar, memoria),
-        daemon=True,
-    )
-    thread.start()
+    threads: list[threading.Thread] = []
+
+    def comecar(automatico: bool) -> None:
+        print(f"[modo] {'automatico' if automatico else 'so sugerir'}")
+        thread = threading.Thread(
+            target=_trabalhar_com_registro,
+            args=(janela, solver, parar, automatico, memoria),
+            daemon=True,
+        )
+        thread.start()
+        threads.append(thread)
+
+    janela.escolher_modo(comecar)
     try:
         janela.executar()
     except KeyboardInterrupt:
         pass
     finally:
         parar.set()
-        thread.join(timeout=5)
+        for thread in threads:
+            thread.join(timeout=5)
         print("Encerrado.")
+
+
+def main() -> None:
+    registro.iniciar()
+    try:
+        _executar()
+    except Exception:
+        registro.registrar_erro("erro ao abrir o programa")
+        _erro_ao_abrir()
+        raise SystemExit(1)  # codigo de saida de erro (quem roda pelo terminal percebe)
 
 
 if __name__ == "__main__":
