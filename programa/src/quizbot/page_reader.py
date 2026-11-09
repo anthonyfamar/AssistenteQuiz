@@ -20,6 +20,9 @@
 #               Resultado (questao + alternativa marcada + acertou). Lista vazia se a
 #               pagina nao for uma revisao. Uma questao cuja imagem nao pode ser lida
 #               e pulada (nao vale chutar a chave dela).
+#               ler_painel() -> na pagina INICIAL do quiz, le em que pe estao as tentativas
+#               (qual botao aparece, a tabela com as notas e a nota maxima) e devolve um
+#               PainelQuiz; None se a pagina nao for essa. So olha, nao clica.
 #
 # Os seletores CSS de cada site ficam no config.py.
 import base64
@@ -37,11 +40,79 @@ from quizbot.config import (
     SELETOR_ENUNCIADO,
     SELETOR_MARCADAS,
     SELETOR_QUESTAO,
+    SELETOR_TABELA_TENTATIVAS,
+    TEXTO_BOTAO_COMECAR,
+    TEXTO_BOTAO_CONTINUAR,
+    TEXTO_BOTAO_OUTRA,
+    TEXTO_SEM_MAIS_TENTATIVAS,
 )
 from quizbot.html_texto import ImagemRef, ResultadoHtml, converter_html
-from quizbot.models import Imagem, Question, Resultado
+from quizbot.models import Imagem, PainelQuiz, Question, Resultado, Situacao, Tentativa
 
 _PREFIXO = re.compile(PADRAO_PREFIXO_ALTERNATIVA)
+_NUMERO = re.compile(r"\d+(?:[.,]\d+)?")
+_NOTA_MAXIMA = re.compile(r"/\s*(\d+(?:[.,]\d+)?)")
+
+# Le so o TEXTO da tabela de tentativas: os cabecalhos e, para cada linha, o texto das celulas.
+# Do "Estado" tira o trecho dos detalhes (a data de envio), numa copia solta na memoria.
+_JS_TABELA = """
+tabela => {
+    const texto = el => {
+        const copia = el.cloneNode(true);
+        copia.querySelectorAll('.statedetails').forEach(e => e.remove());
+        return copia.textContent.trim();
+    };
+    return {
+        cabecalhos: Array.from(tabela.querySelectorAll('thead th')).map(texto),
+        linhas: Array.from(tabela.querySelectorAll('tbody tr')).map(
+            tr => Array.from(tr.querySelectorAll('td')).map(texto)
+        ),
+    };
+}
+"""
+
+# Qual botao (ou aviso) a pagina inicial mostra decide a situacao. So um aparece por vez.
+_BOTOES_DO_PAINEL = (
+    (TEXTO_BOTAO_CONTINUAR, Situacao.EM_ANDAMENTO),
+    (TEXTO_BOTAO_COMECAR, Situacao.SEM_TENTATIVA),
+    (TEXTO_BOTAO_OUTRA, Situacao.PODE_REFAZER),
+)
+
+
+def _numero(texto: str) -> float | None:
+    achado = _NUMERO.search(texto)
+    return float(achado.group().replace(",", ".")) if achado else None
+
+
+def _coluna(cabecalhos: list[str], comeco: str) -> int | None:
+    for i, cabecalho in enumerate(cabecalhos):
+        if cabecalho.lower().startswith(comeco):
+            return i
+    return None
+
+
+def _ler_tabela(dados: dict) -> tuple[tuple[Tentativa, ...], float | None]:
+    """Transforma o texto da tabela em tentativas e na nota maxima do cabecalho."""
+    cabecalhos = dados["cabecalhos"]
+    col_numero = _coluna(cabecalhos, "tentativa")
+    col_estado = _coluna(cabecalhos, "estado")
+    col_nota = _coluna(cabecalhos, "nota")
+    nota_maxima = None
+    if col_nota is not None:
+        achado = _NOTA_MAXIMA.search(cabecalhos[col_nota])
+        nota_maxima = float(achado.group(1).replace(",", ".")) if achado else None
+
+    def celula(linha: list[str], coluna: int | None) -> str:
+        return linha[coluna] if coluna is not None and coluna < len(linha) else ""
+
+    tentativas = []
+    for linha in dados["linhas"]:
+        numero = _numero(celula(linha, col_numero))
+        estado = celula(linha, col_estado).split("\n")[0].strip()  # "Finalizada" (sem a data)
+        tentativas.append(
+            Tentativa(int(numero) if numero is not None else None, estado, _numero(celula(linha, col_nota)))
+        )
+    return tuple(tentativas), nota_maxima
 
 # Copia o elemento para um documento "inerte" (que nunca carrega imagens nem roda nada;
 # a pagina nao e tocada) e tira o src das imagens de formula, que ja trazem a formula
@@ -245,6 +316,36 @@ class PageReader:
                 continue
             resultados.append(Resultado(questao, dados["indice"], dados["acertou"]))
         return resultados
+
+    @staticmethod
+    def _ler_painel_quadro(quadro: Frame) -> PainelQuiz | None:
+        situacao = None
+        for texto, candidata in _BOTOES_DO_PAINEL:
+            if quadro.locator("button", has_text=texto).count() == 1:
+                situacao = candidata
+                break
+        else:
+            if quadro.locator(".quizattempt p", has_text=TEXTO_SEM_MAIS_TENTATIVAS).count() > 0:
+                situacao = Situacao.ESGOTADO
+        if situacao is None:
+            return None
+        tentativas: tuple[Tentativa, ...] = ()
+        nota_maxima = None
+        tabela = quadro.locator(SELETOR_TABELA_TENTATIVAS)
+        if tabela.count() == 1:
+            tentativas, nota_maxima = _ler_tabela(tabela.evaluate(_JS_TABELA, timeout=2000))
+        return PainelQuiz(situacao, tentativas, nota_maxima)
+
+    def ler_painel(self) -> PainelQuiz | None:
+        for quadro in self._quadros():
+            try:
+                painel = self._ler_painel_quadro(quadro)
+            except PlaywrightError:
+                self._checar_conexao()
+                continue
+            if painel is not None:
+                return painel
+        return None
 
     def ler_questao(self) -> Question | None:
         for quadro in self._quadros():
