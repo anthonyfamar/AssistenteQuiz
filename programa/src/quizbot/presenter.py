@@ -2,7 +2,9 @@
 #
 # Presenter (classe abstrata) -> contrato: mostrar(question, suggestion).
 #                                Opcionais: consultando() (a IA esta pensando) e
-#                                avisar(mensagem) (erros e avisos; padrao: imprime).
+#                                avisar(mensagem) (erros e avisos; padrao: imprime) e
+#                                erro_inesperado(pasta_log) (algo quebrou; os detalhes
+#                                estao no registro, na pasta indicada).
 # TerminalPresenter           -> imprime no terminal.
 # JanelaPresenter (janela.py) -> janelinha sempre visivel com tkinter.
 #                                Trocar de um para o outro e so trocar a classe.
@@ -21,6 +23,10 @@ class Presenter(ABC):
 
     def avisar(self, mensagem: str) -> None:
         print(f"[aviso] {mensagem}")
+
+    def erro_inesperado(self, pasta_log: str) -> None:
+        self.avisar(f"Algo deu errado. Os detalhes estao em: {pasta_log}")
+
 
 class TerminalPresenter(Presenter):
     def mostrar(self, question: Question, suggestion: Suggestion) -> None:
