@@ -8,7 +8,8 @@
 # Tem tambem um campo (opcional) para a SENHA DA MEMORIA: com ela os PCs dividem o que
 # aprenderam (certas e erradas). Sem ela, a memoria fica so neste PC.
 # Ao salvar, o .env e reescrito: a ORDEM_PROVEDORES que ja existia e mantida, e tambem
-# AUTOMATICO, AUTOMATICO_FINALIZAR e NOME_PC, se estiverem la.
+# NOME_PC, se estiver la. (Linhas antigas de AUTOMATICO* somem: o modo agora e escolhido
+# na janelinha, a cada vez que o programa abre.)
 import re
 import tkinter as tk
 import webbrowser
@@ -21,7 +22,7 @@ from quizbot.chrome import achar_navegador
 from quizbot.config import ARQUIVO_ENV, ORDEM_PADRAO, PROVEDORES, Provedor
 
 LARGURA_TEXTO = 560
-CHAVES_MANTIDAS = ("AUTOMATICO", "AUTOMATICO_FINALIZAR", "NOME_PC")
+CHAVES_MANTIDAS = ("NOME_PC",)
 
 
 def valor_env(valor: str) -> str:
