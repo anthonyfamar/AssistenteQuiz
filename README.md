@@ -116,10 +116,10 @@ Os planos gratuitos têm limites e **mudam sem aviso**. Confirme os valores atua
 
 ## Como usar
 
-**Dê dois cliques no atalho `AssistenteQuiz`** (ou em `programa\iniciar.bat`). Ele:
+**Dê dois cliques no atalho `AssistenteQuiz`** (ou em `programa\iniciar.pyw`). Ele:
 
-1. abre o navegador do assistente, se ainda não estiver aberto: o Chrome ou, se não houver, o Edge (com a porta de depuração 9222 e um perfil próprio, `chrome-assistente`, na sua pasta de usuário, fora do projeto);
-2. abre uma janelinha no canto inferior direito da tela, sempre por cima das outras;
+1. abre uma janelinha no canto inferior direito da tela, sempre por cima das outras, que pergunta o modo: **Automático** ou **Só sugerir**;
+2. abre o navegador do assistente, se ainda não estiver aberto: o Chrome ou, se não houver, o Edge (com a porta de depuração 9222 e um perfil próprio, `chrome-assistente`, na sua pasta de usuário, fora do projeto);
 3. conecta ao navegador e começa a ler.
 
 Faça login no site **na janela do navegador que abriu** (nenhuma senha vai em código ou `.env`) e abra uma questão. A janelinha mostra:
@@ -161,7 +161,7 @@ AssistenteQuiz/
 ├── LEIA-ME.txt                passo a passo para quem não programa
 ├── programa/                  tudo o que o programa precisa (ninguém precisa abrir)
 │   ├── instalar.ps1           o instalador em si (chamado pelo 1-INSTALAR.bat)
-│   ├── iniciar.bat            abre o navegador e a janelinha
+│   ├── iniciar.pyw            abre a janelinha e o navegador (sem janela preta)
 │   ├── configurar.bat         janela das chaves de IA
 │   ├── requirements.txt       componentes que o programa usa
 │   ├── .env.example           modelo do .env (o .env fica aqui, fora do Git)
