@@ -16,8 +16,17 @@
 #               + uma explicacao curta + a origem (nome do provedor que respondeu).
 # Resultado  -> uma questao lida na pagina de REVISAO: a questao, qual alternativa foi
 #               marcada (indice, 0 = primeira) e se o Moodle a deu como certa.
+#
+# Situacao   -> em que pe esta a PAGINA INICIAL do quiz (a das tentativas):
+#               SEM_TENTATIVA (botao de comecar), EM_ANDAMENTO (botao de continuar),
+#               PODE_REFAZER (botao de outra tentativa) ou ESGOTADO (sem mais tentativas).
+# Tentativa  -> uma linha da tabela de tentativas: numero, estado e nota (None se nao ha).
+# PainelQuiz -> a pagina inicial lida: a situacao, as tentativas e a nota maxima (a do
+#               cabecalho "Nota / 10,00"). Responde "acertou tudo?" e monta o resumo das
+#               notas: a MAIOR nota e a que vale, mesmo que a ultima tentativa seja pior.
 import hashlib
 from dataclasses import dataclass
+from enum import Enum
 from functools import cached_property
 
 
@@ -55,3 +64,60 @@ class Resultado:
     questao: Question
     indice: int
     acertou: bool
+
+
+class Situacao(Enum):
+    SEM_TENTATIVA = "sem_tentativa"
+    EM_ANDAMENTO = "em_andamento"
+    PODE_REFAZER = "pode_refazer"
+    ESGOTADO = "esgotado"
+
+
+@dataclass(frozen=True)
+class Tentativa:
+    numero: int | None
+    estado: str
+    nota: float | None
+
+
+def formatar_nota(nota: float) -> str:
+    return f"{nota:.2f}".replace(".", ",")  # o Moodle em portugues usa virgula
+
+
+@dataclass(frozen=True)
+class PainelQuiz:
+    situacao: Situacao
+    tentativas: tuple[Tentativa, ...] = ()
+    nota_maxima: float | None = None
+
+    @property
+    def _com_nota(self) -> tuple[Tentativa, ...]:
+        return tuple(t for t in self.tentativas if t.nota is not None)
+
+    @property
+    def ultima(self) -> Tentativa | None:
+        """A tentativa mais recente que ja tem nota (a ultima linha da tabela)."""
+        return self._com_nota[-1] if self._com_nota else None
+
+    @property
+    def melhor(self) -> Tentativa | None:
+        """A tentativa de maior nota (a primeira, se houver empate)."""
+        return max(self._com_nota, key=lambda t: t.nota, default=None)
+
+    @property
+    def tudo_certo(self) -> bool:
+        if self.nota_maxima is None or self.melhor is None:
+            return False
+        return self.melhor.nota >= self.nota_maxima - 1e-9
+
+    def resumo_das_notas(self) -> str:
+        ultima, melhor = self.ultima, self.melhor
+        if ultima is None or melhor is None:
+            return "Não consegui ler a nota."
+        de = f" de {formatar_nota(self.nota_maxima)}" if self.nota_maxima is not None else ""
+        if melhor.nota > ultima.nota:
+            return (
+                f"Nota da última tentativa: {formatar_nota(ultima.nota)}{de}. "
+                f"Fica a maior nota: {formatar_nota(melhor.nota)}{de} (tentativa {melhor.numero})."
+            )
+        return f"Nota final: {formatar_nota(ultima.nota)}{de}."
