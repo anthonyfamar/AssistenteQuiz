@@ -8,6 +8,9 @@
 #            - certa(questao) / erradas(questao): o que se sabe, juntando TODOS os PCs.
 #            - registrar_revisao(resultados): guarda tudo da pagina de revisao de uma vez
 #              e grava UMA vez (poupa as escritas do limite diario da nuvem).
+#            - garantir_guardado(): True se o que se aprendeu esta em pelo menos um lugar
+#              (arquivo local OU nuvem). O que ficou so no local sobe para a nuvem depois,
+#              na proxima leitura (veja ArmazenamentoEspelhado).
 #            Os dados vivem num Armazenamento (pasta local e/ou nuvem). Cada PC grava so o
 #            seu, e a Memoria relê todos de tempos em tempos (INTERVALO_SINCRONIA), entao o
 #            que um PC aprende aparece nos outros sem reiniciar.
@@ -23,8 +26,14 @@ import re
 import time
 from collections.abc import Callable, Iterable
 
-from quizbot.armazenamento import Armazenamento, juntar_dados, juntar_entradas, nome_seguro
-from quizbot.config import INTERVALO_SINCRONIA
+from quizbot.armazenamento import (
+    Armazenamento,
+    NuvemError,
+    juntar_dados,
+    juntar_entradas,
+    nome_seguro,
+)
+from quizbot.config import INTERVALO_REGRAVAR, INTERVALO_SINCRONIA
 from quizbot.models import Question, Resultado
 
 _MARCA_IMAGEM = re.compile(r"\[imagem \d+\]")
@@ -54,6 +63,8 @@ class Memoria:
         self._proprios: dict[str, dict] = {}  # o que ESTE PC aprendeu (e grava)
         self._outros: dict[str, dict] = {}  # o que os outros PCs aprenderam (so leitura)
         self._ultima_sincronia: float | None = None  # a 1a leitura acontece no 1o uso
+        self._guardado = True  # False se a ultima gravacao nao chegou em lugar nenhum
+        self._ultima_gravacao = 0.0
 
     def atualizar(self) -> None:
         todos = self._armazenamento.ler_todos()
@@ -89,7 +100,22 @@ class Memoria:
         return juntar_entradas(self._proprios.get(chave, {}), self._outros.get(chave, {}))
 
     def _salvar(self) -> None:
-        self._armazenamento.gravar(self._proprios)
+        self._ultima_gravacao = self._relogio()
+        try:
+            self._armazenamento.gravar(self._proprios)
+            self._guardado = True
+        except (OSError, NuvemError):  # nem o arquivo local nem a nuvem aceitaram
+            self._guardado = False
+
+    def garantir_guardado(self) -> bool:
+        """True se o que se aprendeu esta guardado em PELO MENOS um lugar (local ou nuvem).
+
+        Se estiver parcial (so no local), tudo bem: a nuvem recebe depois, sozinha. Se nao
+        chegou em lugar nenhum, tenta de novo, no maximo uma vez a cada INTERVALO_REGRAVAR
+        segundos."""
+        if not self._guardado and self._relogio() - self._ultima_gravacao >= INTERVALO_REGRAVAR:
+            self._salvar()
+        return self._guardado
 
     def certa(self, questao: Question) -> str | None:
         self._atualizar_se_preciso()
