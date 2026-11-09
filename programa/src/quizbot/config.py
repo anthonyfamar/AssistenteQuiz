@@ -34,6 +34,23 @@ CLASSE_CORRETA = "correct"
 TEXTO_BOTAO_FINALIZAR = "Enviar tudo e terminar"
 SELETOR_CONFIRMAR_FINALIZAR = 'input[id^="id_yuiconfirmyes"]'
 
+# Terminar a revisao (so na pagina de revisao). E um <a>, nao um <input>: o seletor
+# "a." deixa de confundir com o botao "Proxima pagina", que tem a mesma classe.
+SELETOR_BOTAO_TERMINAR_REVISAO = "a.mod_quiz-next-nav"
+TEXTO_BOTAO_TERMINAR_REVISAO = "Terminar revisão"
+
+# Pagina INICIAL do quiz (as tentativas). Os botoes tem ids que mudam a cada acesso, entao
+# cada um e achado pelo texto. O programa decide pelo que a pagina mostra, sem contar
+# tentativas no codigo: o limite vem do proprio Moodle.
+SELETOR_TABELA_TENTATIVAS = "table.quizattemptsummary"
+TEXTO_BOTAO_COMECAR = "Tentar responder o questionário agora"  # nenhuma tentativa ainda
+TEXTO_BOTAO_CONTINUAR = "Continuar a última tentativa"  # saiu no meio e abriu de novo
+TEXTO_BOTAO_OUTRA = "Fazer uma outra tentativa"
+TEXTO_SEM_MAIS_TENTATIVAS = "Não são permitidas outras tentativas"
+TEXTO_BOTAO_VOLTAR = "Voltar ao curso"
+# Ao acabar as tentativas, quantos segundos mostrar a nota antes de voltar ao curso.
+PAUSA_ANTES_DE_VOLTAR = 20.0
+
 # Tira o "a. " ou "b) " do comeco de cada alternativa (o presenter ja poe as letras).
 PADRAO_PREFIXO_ALTERNATIVA = r"^[a-zA-Z][.)]\s+"
 
@@ -49,6 +66,12 @@ PAUSA_APOS_CLICAR = 1.0
 PASTA_USUARIO = Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "AssistenteQuiz"
 PASTA_MEMORIA = PASTA_USUARIO / "memoria"
 NOME_PC = socket.gethostname()  # pode ser trocado com NOME_PC no .env
+# Registro (log): tudo que o programa conta fica em assistente.log, na pasta do usuario. A cada
+# execucao o arquivo recomeca e o anterior vira assistente.log.1, para nao crescer sem parar.
+PASTA_LOGS = PASTA_USUARIO / "logs"
+ARQUIVO_LOG = PASTA_LOGS / "assistente.log"
+# Tela de escolha do modo: segundos ate comecar sozinho no Automatico.
+PAUSA_ESCOLHA = 30
 # Nuvem (Firebase/Firestore, plano gratuito Spark). O programa entra no banco com um
 # usuario unico (e-mail abaixo) e a SENHA, que fica so no .env de cada PC (MEMORIA_SENHA).
 # A "chave da API web" abaixo e PUBLICA por desenho: so identifica o projeto. Quem protege
@@ -59,6 +82,8 @@ MEMORIA_EMAIL = "memoria@assistentequiz.app"
 # De quanto em quanto tempo (segundos) a memoria relê o que os outros PCs aprenderam.
 # Cada leitura gasta so 1 leitura por PC das 50 mil diarias do plano gratuito.
 INTERVALO_SINCRONIA = 300.0
+# Se a gravacao na nuvem falhar, de quanto em quanto tempo (segundos) tentar de novo.
+INTERVALO_REGRAVAR = 10.0
 
 # Navegador do assistente: Chrome (ou o Edge, que ja vem no Windows), aberto com a porta
 # de depuracao e um perfil separado, fora do projeto (guarda o login do usuario).
