@@ -13,9 +13,10 @@
 #                               Para dois PCs nao se atropelarem, gravar() le o documento,
 #                               junta com o que ja tinha la e so grava se ninguem mudou o
 #                               documento nesse meio tempo (senao, repete).
-#  |- ArmazenamentoEspelhado -> usa os dois: grava SEMPRE no local e tenta subir para a
-#                               nuvem; se a internet falhar, segue com o local e tenta de
-#                               novo na proxima.
+#  |- ArmazenamentoEspelhado -> usa os dois: grava no local e na nuvem (um nao depende do
+#                               outro). Se a nuvem falhar, o que ficou so no local sobe
+#                               sozinho na proxima leitura (ao abrir e a cada 5 minutos):
+#                               o que o local sabe e a nuvem nao e enviado.
 import json
 import os
 import re
@@ -97,8 +98,11 @@ class Armazenamento(ABC):
         """Devolve  nome-da-fonte -> dados  de tudo que esta guardado."""
 
     @abstractmethod
-    def gravar(self, dados: dict) -> None:
-        """Grava os dados deste PC (sem perder o que ja estava guardado por outros)."""
+    def gravar(self, dados: dict) -> bool:
+        """Grava os dados deste PC (sem perder o que ja estava guardado por outros).
+
+        Devolve True se chegou em TODOS os destinos; False se chegou so em alguns.
+        Levanta erro (OSError/NuvemError) se nao chegou em NENHUM."""
 
 
 class ArmazenamentoLocal(Armazenamento):
@@ -121,11 +125,12 @@ class ArmazenamentoLocal(Armazenamento):
                 todos[arquivo.stem.removeprefix(PREFIXO_ARQUIVO)] = dados
         return todos
 
-    def gravar(self, dados: dict) -> None:
+    def gravar(self, dados: dict) -> bool:
         self._pasta.mkdir(parents=True, exist_ok=True)
         temporario = self._arquivo.with_suffix(".tmp")
         temporario.write_text(json.dumps(dados, ensure_ascii=False, indent=2), encoding="utf-8")
         os.replace(temporario, self._arquivo)
+        return True
 
 
 class ArmazenamentoFirestore(Armazenamento):
@@ -202,7 +207,7 @@ class ArmazenamentoFirestore(Armazenamento):
         conteudo, hora = self._ler_documento()
         return {DOCUMENTO: conteudo} if hora is not None else {}
 
-    def gravar(self, dados: dict) -> None:
+    def gravar(self, dados: dict) -> bool:
         for _ in range(TENTATIVAS_GRAVAR):
             atual, hora = self._ler_documento()
             # So grava se o documento continua como foi lido (ou continua sem existir).
@@ -216,7 +221,7 @@ class ArmazenamentoFirestore(Armazenamento):
             }
             try:
                 self._pedir("PATCH", f"{self._url_documento}?{urllib.parse.urlencode(condicao)}", corpo)
-                return
+                return True
             except ConflitoNuvem:
                 continue  # outro PC gravou no meio: le de novo e junta de novo
         raise NuvemError("outro PC estava gravando ao mesmo tempo; tente de novo")
@@ -243,18 +248,44 @@ class ArmazenamentoEspelhado(Armazenamento):
             self._avisar(erro)
             return todos
         self.erro_nuvem = None
+        self._subir_o_que_falta(todos, na_nuvem)
         for nome, dados in na_nuvem.items():
             todos[nome] = juntar_dados(todos.get(nome, {}), dados)
         return todos
 
-    def gravar(self, dados: dict) -> None:
-        self._local.gravar(dados)
+    def _subir_o_que_falta(self, locais: dict[str, dict], nuvem: dict[str, dict]) -> None:
+        """Se o arquivo local sabe algo que a nuvem nao sabe (ex.: a nuvem estava fora do ar
+        na hora de gravar), sobe agora. So grava se houver diferenca de verdade."""
+        nosso: dict = {}
+        for dados in locais.values():
+            nosso = juntar_dados(nosso, dados)
+        la: dict = {}
+        for dados in nuvem.values():
+            la = juntar_dados(la, dados)
+        if juntar_dados(la, nosso) == la:
+            return
+        try:
+            self._remoto.gravar(nosso)
+        except Exception as erro:
+            self._avisar(erro)
+
+    def gravar(self, dados: dict) -> bool:
+        # Tenta os dois destinos, um nao depende do outro. So levanta erro se NENHUM guardou.
+        erro_local: OSError | None = None
+        try:
+            self._local.gravar(dados)
+        except OSError as erro:
+            erro_local = erro
+            print(f"[memoria] nao consegui gravar o arquivo local ({erro})")
         try:
             self._remoto.gravar(dados)
         except Exception as erro:
             self._avisar(erro)
-        else:
-            self.erro_nuvem = None
+            if erro_local is not None:
+                raise erro_local
+            return False  # ficou no local; _subir_o_que_falta leva para a nuvem depois
+        self.erro_nuvem = None
+        return erro_local is None
 
     def _avisar(self, erro: Exception) -> None:
         mensagem = f"{type(erro).__name__}: {str(erro)[:150]}"
