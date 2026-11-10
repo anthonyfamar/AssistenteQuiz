@@ -4,7 +4,9 @@
 #                                Opcionais: consultando() (a IA esta pensando) e
 #                                avisar(mensagem) (erros e avisos; padrao: imprime) e
 #                                erro_inesperado(pasta_log) (algo quebrou; os detalhes
-#                                estao no registro, na pasta indicada).
+#                                estao no registro, na pasta indicada) e
+#                                problemas_nos_provedores(lista) (avisos das falhas da
+#                                ultima consulta; a janela mostra e apaga sozinha).
 # TerminalPresenter           -> imprime no terminal.
 # JanelaPresenter (janela.py) -> janelinha sempre visivel com tkinter.
 #                                Trocar de um para o outro e so trocar a classe.
@@ -26,6 +28,9 @@ class Presenter(ABC):
 
     def erro_inesperado(self, pasta_log: str) -> None:
         self.avisar(f"Algo deu errado. Os detalhes estao em: {pasta_log}")
+
+    def problemas_nos_provedores(self, problemas: list[str]) -> None:
+        """Avisos curtos das falhas de IA da ultima consulta (lista vazia = nada a mostrar). Opcional."""
 
 
 class TerminalPresenter(Presenter):
