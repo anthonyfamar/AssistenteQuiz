@@ -48,8 +48,15 @@ TEXTO_BOTAO_CONTINUAR = "Continuar a última tentativa"  # saiu no meio e abriu 
 TEXTO_BOTAO_OUTRA = "Fazer uma outra tentativa"
 TEXTO_SEM_MAIS_TENTATIVAS = "Não são permitidas outras tentativas"
 TEXTO_BOTAO_VOLTAR = "Voltar ao curso"
-# Ao acabar as tentativas, quantos segundos mostrar a nota antes de voltar ao curso.
+# Ao acabar as tentativas (ou tirar a nota maxima), quantos segundos mostrar a nota antes
+# de voltar ao curso.
 PAUSA_ANTES_DE_VOLTAR = 20.0
+# Com tentativas sobrando (nota maxima de primeira) nao existe o botao "Voltar ao curso":
+# o programa volta pelo historico do navegador (a seta de voltar) ate cair na pagina do
+# curso, reconhecida por este pedaco do endereco. Passa pelo maximo de paginas abaixo e,
+# se nao achar o curso, para onde estiver e avisa.
+FRAGMENTO_URL_CURSO = "/course/view.php"
+MAX_VOLTAS_NO_HISTORICO = 25
 
 # Tira o "a. " ou "b) " do comeco de cada alternativa (o presenter ja poe as letras).
 PADRAO_PREFIXO_ALTERNATIVA = r"^[a-zA-Z][.)]\s+"
@@ -118,6 +125,11 @@ class Provedor:
     url_chave: str = ""
     modelo_sugerido: str = ""
     modelo_visao_sugerido: str = ""
+    # Modelos reserva DO MESMO provedor, do melhor para o pior. Se o modelo do .env falhar
+    # (sobrecarregado, fora do ar), o programa tenta estes ANTES de passar para outro
+    # provedor. Escolhidos da mesma linha do modelo principal, so um pouco abaixo (nunca
+    # modelos muito antigos). Depois da pausa, o principal e sempre tentado primeiro.
+    modelos_reserva: tuple[str, ...] = ()
 
 
 # modelo_visao_env = modelo usado nas questoes COM imagem (precisa enxergar). Se ficar
@@ -137,6 +149,7 @@ PROVEDORES = {
         url_chave="https://aistudio.google.com/apikey",
         modelo_sugerido="gemini-3.8-flash",
         modelo_visao_sugerido="gemini-3.8-flash",
+        modelos_reserva=("gemini-3.7-flash", "gemini-3.6-flash"),
     ),
     "groq": Provedor(
         "groq",
@@ -179,5 +192,15 @@ PROVEDORES = {
 
 ORDEM_PADRAO = "gemini,groq,openrouter,ollama-cloud"
 MAX_BYTES_IMAGEM = 4 * 1024 * 1024
-TIMEOUT_API = 30.0
-COOLDOWN_PROVEDOR = 60.0
+# Quanto esperar (segundos) por UMA resposta antes de desistir e passar para o proximo modelo.
+# Erro claro ("fora do ar", 503...) nao espera nada: passa para o proximo na hora.
+TIMEOUT_RAPIDO = 5.0  # tentativa que ainda tem outro modelo livre depois dela
+TIMEOUT_API = 15.0  # o ultimo da fila (e o limite padrao do cliente); imagem espera o dobro
+# Modelo que falhou sai da fila; em segundo plano ele e testado (pedido minusculo) depois
+# deste tempo, que dobra a cada teste que falha (ate 6x). So volta quando o teste passa.
+COOLDOWN_PROVEDOR = 30.0
+# Tempo minimo (segundos) que um aviso fica na janelinha para dar tempo de ler: o alerta de
+# falha da IA (some sozinho depois disso) e os avisos amarelos do corpo da janela (o
+# "Consultando a IA..." seguinte espera a sua vez; a sugestao nunca espera).
+# Estimativa humana: ~2,5 s para ler a frase + ~1,5 s para perceber e olhar = 4 s no limite; 5 s folgado.
+SEGUNDOS_ALERTA = 5
