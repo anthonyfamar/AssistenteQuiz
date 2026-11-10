@@ -120,6 +120,8 @@ class AssistenteQuiz:
         if self._responder.terminar_revisao():
             self._revisao_fechada = True
             self._presenter.avisar("Revisão terminada.")
+        else:
+            self._avisar_uma_vez('Não achei o botão "Terminar revisão". Clique você mesmo.')
 
     def _avisar_uma_vez(self, mensagem: str) -> None:
         if mensagem != self._aviso_painel:
@@ -127,29 +129,28 @@ class AssistenteQuiz:
             self._presenter.avisar(mensagem)
 
     def _quiz_concluido(self, painel: PainelQuiz) -> None:
-        # Tirou a nota maxima: por enquanto o assistente so fica aguardando.
-        # ESPACO PARA O FUTURO: aqui entra o que fazer a seguir (ex.: ir para outro quiz).
-        self._avisar_uma_vez(
-            f"{painel.resumo_das_notas()} Acertou tudo. Aguardando outra página com questões."
-        )
+        # Tirou a nota maxima (ainda com tentativas sobrando): nao ha por que refazer.
+        # Mostra a nota e volta ao curso, como quando as tentativas acabam.
+        # ESPACO PARA O FUTURO: depois de voltar ao curso, aqui entra ir para o proximo quiz.
+        self._voltar_ao_curso(painel, "Acertou tudo.")
 
-    def _voltar_ao_curso(self, painel: PainelQuiz) -> None:
-        # Sem mais tentativas: mostra a nota, espera e volta ao curso. Se a pagina mudar
-        # durante a espera (o usuario foi para outro lugar), cancela e nao clica.
+    def _voltar_ao_curso(self, painel: PainelQuiz, motivo: str = "") -> None:
+        # Mostra a nota, espera e volta ao curso. Se a pagina mudar durante a espera
+        # (o usuario foi para outro lugar ou refez a tentativa), cancela e nao clica.
         segundos = int(self._pausa_voltar)
-        resumo = painel.resumo_das_notas()
+        resumo = f"{painel.resumo_das_notas()} {motivo}".strip()
         self._presenter.avisar(f"{resumo} Voltando ao curso em {segundos} s.")
         for passou in range(segundos):
             if self._parar.wait(1):
                 return
             atual = self._reader.ler_painel()
-            if atual is None or atual.situacao is not Situacao.ESGOTADO:
+            if atual is None or atual.situacao is not painel.situacao:
                 return
             if passou + 1 == segundos // 2:
                 self._presenter.avisar(f"{resumo} Voltando ao curso em {segundos - passou - 1} s.")
         self._painel_agido = True
         if not self._responder.voltar_ao_curso():
-            self._presenter.avisar("Não achei o botão \"Voltar ao curso\". Clique você mesmo.")
+            self._presenter.avisar("Não consegui voltar ao curso. Volte você mesmo.")
 
     def _cuidar_do_painel(self) -> None:
         # Pagina inicial do quiz: decide pelo que a pagina mostra (veja a tabela no topo).
@@ -173,7 +174,6 @@ class AssistenteQuiz:
             return
         if painel.situacao is Situacao.PODE_REFAZER:
             if painel.tudo_certo:
-                self._painel_agido = True
                 self._quiz_concluido(painel)
                 return
             if painel.ultima is None or painel.nota_maxima is None:
