@@ -149,7 +149,7 @@ def _executar() -> None:
     janela = JanelaPresenter(ao_fechar=parar.set)
 
     try:
-        solver = montar_solver()
+        solver = montar_solver(janela.problemas_nos_provedores)
     except SolverError as erro:
         janela.avisar(str(erro))
         janela.executar()
