@@ -7,6 +7,8 @@
 # iniciar()        -> chame uma vez, no comeco. Troca o print por uma copia que escreve no
 #                     arquivo (com a hora de cada linha) e, se houver terminal, tambem nele.
 #                     O arquivo recomeca a cada execucao; o anterior vira assistente.log.1.
+# Os erros ficam em blocos entre "PROBLEMA" e "FIM DO PROBLEMA", com o que aconteceu em
+# cima e o rastro tecnico embaixo: e so procurar por PROBLEMA no arquivo.
 # registrar_erro() -> grava o rastro completo (traceback) do erro que esta acontecendo.
 # abrir_pasta()    -> abre a pasta do registro no Explorer.
 #
@@ -14,6 +16,7 @@
 # tenha KEY ou SENHA e trocado por *** antes de gravar (mensagens de erro de provedores
 # as vezes citam um pedaco da chave).
 import os
+import platform
 import sys
 import time
 import traceback
@@ -88,14 +91,19 @@ def iniciar(arquivo: Path = ARQUIVO_LOG) -> Path:
     sys.stdout = copia
     sys.stderr = _Copia(copia._arquivo, sys.stderr)
     print(f"[registro] iniciado em {time.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"[registro] arquivo: {arquivo}")
+    print(f"[registro] Python {platform.python_version()} em {platform.platform()}")
+    print("[registro] Para achar um problema, procure por PROBLEMA ou [erro] neste arquivo.")
     return arquivo
 
 
 def registrar_erro(contexto: str = "") -> None:
     """Grava o erro que esta sendo tratado agora (chame dentro de um 'except')."""
+    print("=============== PROBLEMA ===============")
     if contexto:
         print(f"[erro] {contexto}")
     print(traceback.format_exc().rstrip())
+    print("=============== FIM DO PROBLEMA ===============")
 
 
 def abrir_pasta(pasta: Path = ARQUIVO_LOG.parent) -> None:
