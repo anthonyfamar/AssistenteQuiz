@@ -223,6 +223,8 @@ class Provedor:
     # provedor. Escolhidos da mesma linha do modelo principal, so um pouco abaixo (nunca
     # modelos muito antigos). Depois da pausa, o principal e sempre tentado primeiro.
     modelos_reserva: tuple[str, ...] = ()
+    # Reservas que NAO enxergam imagem: entram depois das outras e so respondem questao de texto.
+    reservas_so_texto: tuple[str, ...] = ()
     # Modelos que "pensam" antes de responder levam uns 10 s: multiplica o tempo de espera deles.
     fator_de_espera: float = 1.0
 
@@ -244,7 +246,10 @@ PROVEDORES = {
         url_chave="https://aistudio.google.com/apikey",
         modelo_sugerido="gemini-3.8-flash",
         modelo_visao_sugerido="gemini-3.8-flash",
-        modelos_reserva=("gemini-3.7-flash", "gemini-3.6-flash"),
+        # Cada modelo do Gemini tem a cota do dia SEPARADA (a mensagem do erro 429 diz "por dia, por
+        # projeto, por modelo"). O 3-flash-preview respondeu 4 de 4 nas questoes de teste em 2,8 s.
+        # Os "lite" levam ~6 s (mais que o tempo rapido) e errram mais: ficaram de fora.
+        modelos_reserva=("gemini-3.7-flash", "gemini-3.6-flash", "gemini-3-flash-preview"),
     ),
     "groq": Provedor(
         "groq",
@@ -258,6 +263,12 @@ PROVEDORES = {
         url_chave="https://console.groq.com/keys",
         modelo_sugerido="openai/gpt-oss-120b",
         modelo_visao_sugerido="qwen/qwen3.8-27b",
+        # Na Groq cada modelo tem o proprio limite no plano gratuito (30/min, 1000/dia, 8 mil
+        # tokens/min e 200 mil tokens/dia, segundo a documentacao oficial): os reservas dao outra
+        # cota quando o principal bate no limite POR MINUTO. qwen3.8-27b: 11 de 12 nos testes e
+        # enxerga imagem; gpt-oss-20b: 6 de 8, so texto.
+        modelos_reserva=("qwen/qwen3.8-27b",),
+        reservas_so_texto=("openai/gpt-oss-20b",),
     ),
     "openrouter": Provedor(
         "openrouter",
@@ -285,23 +296,18 @@ PROVEDORES = {
         ),
         fator_de_espera=2.0,
     ),
-    "ollama-cloud": Provedor(
-        "ollama-cloud",
-        "https://ollama.com/v1",
-        "OLLAMA_API_KEY",
-        "OLLAMA_CLOUD_MODEL",
-        "OLLAMA_CLOUD_MODEL_VISAO",
-        rotulo="Ollama Cloud",
-        dica=(
-            "Em 11/2026 a chave gratuita recebe erro 402 (pede credito ou assinatura) em todos os "
-            "modelos: sem pagar, nao funciona. Pode deixar em branco."
-        ),
-        url_chave="https://ollama.com/settings/keys",
-        modelo_sugerido="gemma4:31b",
-    ),
 }
 
-ORDEM_PADRAO = "gemini,groq,openrouter,ollama-cloud"
+# Provedores que ja existiram e foram retirados, com o motivo (um .env antigo pode ainda citar
+# o nome em ORDEM_PROVEDORES: o programa avisa e ignora, a janela de configuracao tira da ordem).
+# So entra provedor cuja API seja GRATIS de verdade: confira na documentacao OFICIAL (blogs e
+# listas de terceiros ficam desatualizados), principalmente se a chave exige cobranca ativada.
+PROVEDORES_REMOVIDOS = {
+    "ollama-cloud": "a chave gratuita recebe erro 402 (pede credito pago) em todos os modelos desde 11/2026",
+    "mistral": "o plano gratuito nao inclui a API: criar chave exige ativar cobranca (pay-as-you-go), segundo a documentacao oficial",
+}
+
+ORDEM_PADRAO = "gemini,groq,openrouter"
 MAX_BYTES_IMAGEM = 4 * 1024 * 1024
 # Quanto esperar (segundos) por UMA resposta antes de desistir e passar para o proximo modelo.
 # Erro claro ("fora do ar", 503...) nao espera nada: passa para o proximo na hora.
