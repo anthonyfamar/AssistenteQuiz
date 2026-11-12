@@ -1,6 +1,6 @@
 # API - solver que usa uma IA por API compativel com OpenAI.
 #
-# ApiSolver -> um provedor (Gemini, Groq, OpenRouter ou Ollama): recebe o cliente
+# ApiSolver -> um provedor (Gemini, Groq, Mistral ou OpenRouter): recebe o cliente
 #              ja configurado (base_url + chave) e o modelo. Pede a resposta em JSON,
 #              valida e devolve a Suggestion. Qualquer falha vira SolverError.
 #              Questao com imagem usa o modelo_visao (um modelo que enxerga) e manda as
@@ -269,8 +269,9 @@ class ApiSolver(Solver):
                 aviso=self._aviso(frase_curta(erro)),
                 espera_sugerida=espera_da_cota(erro),
                 motivo=explicar_erro(erro),
-                # Chave recusada ou "pede credito pago": esperar nao resolve.
-                permanente=getattr(erro, "status_code", None) in (401, 402, 403),
+                # Chave recusada, "pede credito pago" ou modelo que saiu do ar (404, ex.: "no longer
+                # available to new users"): esperar nao resolve.
+                permanente=getattr(erro, "status_code", None) in (401, 402, 403, 404),
             ) from erro
 
         if not resposta.choices:
