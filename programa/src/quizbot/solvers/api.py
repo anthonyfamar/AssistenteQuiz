@@ -79,6 +79,8 @@ def explicar_erro(erro: OpenAIError) -> str:
     status = getattr(erro, "status_code", None)
     if status == 429:
         return "limite de uso (cota) atingido"
+    if status == 402:
+        return "pede crédito pago (erro 402)"
     if status in (401, 403):
         return "chave recusada"
     if status == 404:
@@ -99,6 +101,8 @@ def frase_curta(erro: OpenAIError) -> str:
     status = getattr(erro, "status_code", None)
     if status == 429:
         return "atingiu o limite de uso"
+    if status == 402:
+        return "pede crédito pago"
     if status in (401, 403):
         return "recusou a chave"
     if status == 404:
@@ -108,16 +112,51 @@ def frase_curta(erro: OpenAIError) -> str:
     return "deu erro"
 
 
-MAX_ESPERA_COTA = 3600.0  # mesmo que o servidor peca 8 h, o vigia olha de hora em hora
+MAX_ESPERA_COTA = 3600.0  # o vigia (FallbackSolver) olha de hora em hora, mesmo que falte mais
+
+# "try again in 1.365s", "retry in 5h55m51.5s", "try again in 7m12s", "in 250ms"
+_FRASE_DE_ESPERA = re.compile(r"(?:try again|retry) in ((?:\d+(?:\.\d+)?(?:ms|h|m|s))+)", re.IGNORECASE)
+_PEDACO_DE_TEMPO = re.compile(r"(\d+(?:\.\d+)?)(ms|h|m|s)")
+_SEGUNDOS_DA_UNIDADE = {"h": 3600.0, "m": 60.0, "s": 1.0, "ms": 0.001}
+# O OpenRouter manda o instante em que o limite do dia zera (epoch em milissegundos).
+_RESET_OPENROUTER = re.compile(r"x-ratelimit-reset\W+(\d{10,13})", re.IGNORECASE)
+
+
+def _segundos_do_texto(duracao: str) -> float:
+    return sum(float(n) * _SEGUNDOS_DA_UNIDADE[u] for n, u in _PEDACO_DE_TEMPO.findall(duracao))
 
 
 def espera_da_cota(erro: OpenAIError) -> float | None:
-    """Erro 429: quantos segundos o servidor pediu para esperar (RetryInfo/retryDelay)."""
+    """Erro 429: quantos segundos o servidor pediu para esperar, SEM limite (pode ser horas).
+
+    Cada provedor avisa de um jeito: o Gemini (retryDelay: "21351s" ou "retry in 5h55m51s"), a
+    Groq ("try again in 1.365s", cabecalho retry-after) e o OpenRouter (X-RateLimit-Reset, a hora
+    em que o limite do dia zera). None = o servidor nao disse quanto falta.
+    """
     if getattr(erro, "status_code", None) != 429:
         return None
-    achado = re.search(r"retryDelay\W+(\d+(?:\.\d+)?)s", str(getattr(erro, "body", "")))
-    segundos = float(achado.group(1)) if achado else 120.0  # sem informacao: 2 min
-    return min(segundos, MAX_ESPERA_COTA)
+    texto = f"{getattr(erro, 'body', '')} {erro}"
+    achado = re.search(r"retryDelay\W+(\d+(?:\.\d+)?)s", texto)
+    if achado:
+        return float(achado.group(1))
+    achado = _FRASE_DE_ESPERA.search(texto)
+    if achado:
+        return _segundos_do_texto(achado.group(1))
+    cabecalhos = getattr(getattr(erro, "response", None), "headers", None) or {}
+    espera = cabecalhos.get("retry-after")
+    if espera is not None:
+        try:
+            return float(espera)
+        except ValueError:  # veio como data HTTP: nao vale o trabalho de converter
+            pass
+    achado = _RESET_OPENROUTER.search(texto) or _RESET_OPENROUTER.search(
+        " ".join(f"{k} {v}" for k, v in cabecalhos.items())
+    )
+    if achado:
+        instante = float(achado.group(1))
+        instante = instante / 1000 if instante > 1e11 else instante  # milissegundos ou segundos
+        return max(instante - time.time(), 0.0)
+    return None
 
 
 def detalhar_erro(nome: str, modelo: str, segundos: float, erro: OpenAIError) -> str:
@@ -147,6 +186,7 @@ class ApiSolver(Solver):
         modelo_visao: str | None = None,
         max_imagens: int = 5,
         apelido: str | None = None,
+        fator_de_espera: float = 1.0,
     ) -> None:
         self._nome = nome
         self._apelido = apelido or nome  # nome para a janela: "Gemini", "Groq"...
@@ -154,10 +194,19 @@ class ApiSolver(Solver):
         self._modelo = modelo
         self._modelo_visao = modelo_visao
         self._max_imagens = max_imagens
+        self._fator_de_espera = fator_de_espera
 
     @property
     def nome(self) -> str:
         return self._nome
+
+    @property
+    def apelido(self) -> str:
+        return self._apelido
+
+    @property
+    def fator_de_espera(self) -> float:
+        return self._fator_de_espera
 
     @property
     def descricao(self) -> str:
@@ -219,6 +268,9 @@ class ApiSolver(Solver):
                 detalhe=detalhar_erro(self.nome, modelo, time.monotonic() - inicio, erro),
                 aviso=self._aviso(frase_curta(erro)),
                 espera_sugerida=espera_da_cota(erro),
+                motivo=explicar_erro(erro),
+                # Chave recusada ou "pede credito pago": esperar nao resolve.
+                permanente=getattr(erro, "status_code", None) in (401, 402, 403),
             ) from erro
 
         if not resposta.choices:
