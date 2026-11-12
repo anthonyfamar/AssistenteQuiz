@@ -24,6 +24,11 @@
 # PainelQuiz -> a pagina inicial lida: a situacao, as tentativas e a nota maxima (a do
 #               cabecalho "Nota / 10,00"). Responde "acertou tudo?" e monta o resumo das
 #               notas: a MAIOR nota e a que vale, mesmo que a ultima tentativa seja pior.
+# Unidade / AtividadeDoCurso / UnidadeAberta / CaminhoDoQuiz -> o CURSO: o menu das unidades (nome e
+#               barra de progresso), as atividades da unidade aberta (e se estao feitas) e o
+#               breadcrumb de uma pagina de quiz (de qual unidade e quiz ela e).
+# QuestaoDoResumo / ResumoTentativa -> a pagina de RESUMO (antes de enviar): cada questao com o
+#               numero e se ja foi respondida. "faltam" lista os numeros sem resposta.
 import hashlib
 from dataclasses import dataclass
 from enum import Enum
@@ -78,6 +83,56 @@ class Tentativa:
     numero: int | None
     estado: str
     nota: float | None
+
+
+@dataclass(frozen=True)
+class QuestaoDoResumo:
+    numero: int
+    respondida: bool
+
+
+@dataclass(frozen=True)
+class ResumoTentativa:
+    questoes: tuple[QuestaoDoResumo, ...]
+
+    @property
+    def faltam(self) -> tuple[int, ...]:
+        """Numeros das questoes ainda sem resposta, em ordem."""
+        return tuple(q.numero for q in self.questoes if not q.respondida)
+
+
+@dataclass(frozen=True)
+class Unidade:
+    """Um item do menu do curso: o nome, a barra de progresso (100 = cheia) e se esta aberta."""
+
+    nome: str
+    percentual: float | None
+    aberta: bool = False
+    secoes: tuple[str, ...] = ()  # "U1 - Seção 1"...: vazio nos cursos sem seções
+    secao_ativa: str | None = None  # a seção marcada como ativa no menu (a que a página mostra)
+
+
+@dataclass(frozen=True)
+class AtividadeDoCurso:
+    nome: str
+    concluida: bool
+    icone: str = ""  # as classes do icone (ex.: "icon-library_books ..."): o quiz tem um proprio
+
+
+@dataclass(frozen=True)
+class UnidadeAberta:
+    """A unidade que a pagina mostra agora: o titulo (h1) e as atividades dela."""
+
+    titulo: str
+    atividades: tuple[AtividadeDoCurso, ...]
+
+
+@dataclass(frozen=True)
+class CaminhoDoQuiz:
+    """O breadcrumb do topo de uma pagina de quiz: a unidade e o nome do quiz."""
+
+    unidade: str | None
+    quiz: str | None
 
 
 def formatar_nota(nota: float) -> str:
