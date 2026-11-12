@@ -21,8 +21,13 @@ class SolverError(Exception):
                 (ex.: "Algo deu errado: API do Gemini fora do ar.").
     detalhe  -> tudo que ajuda o desenvolvedor (modelo, codigo HTTP, resposta do servidor...);
                 vai so para o registro (log).
-    espera_sugerida -> segundos que o servidor pediu para esperar (cota acabou); o
-                FallbackSolver nao testa o modelo antes disso. None = sem sugestao.
+    espera_sugerida -> segundos que o servidor pediu para esperar (cota acabou), SEM limite
+                (pode ser horas); o FallbackSolver nao testa o modelo antes disso e mostra ao
+                usuario quanto falta. None = o servidor nao disse.
+    motivo   -> o que aconteceu em poucas palavras ("limite de uso (cota) atingido"), para
+                montar o aviso de "todas as IAs estao fora".
+    permanente -> True quando esperar nao resolve (chave recusada, pede credito pago): o
+                modelo sai da fila ate o programa ser aberto de novo, sem testes em segundo plano.
     """
 
     def __init__(
@@ -32,12 +37,16 @@ class SolverError(Exception):
         detalhe: str = "",
         aviso: str | None = None,
         espera_sugerida: float | None = None,
+        motivo: str | None = None,
+        permanente: bool = False,
     ) -> None:
         super().__init__(mensagem)
         self.resumo = resumo or mensagem
         self.aviso = aviso or self.resumo
         self.detalhe = detalhe
         self.espera_sugerida = espera_sugerida
+        self.motivo = motivo
+        self.permanente = permanente
 
 
 class Solver(ABC):
@@ -61,6 +70,16 @@ class Solver(ABC):
     def descricao(self) -> str:
         """Nome para mensagens e registro (o ApiSolver acrescenta o modelo)."""
         return self.nome
+
+    @property
+    def apelido(self) -> str:
+        """Nome curto para o usuario ("Gemini", "Groq"); o ApiSolver devolve o do provedor."""
+        return self.nome
+
+    @property
+    def fator_de_espera(self) -> float:
+        """Quantas vezes o tempo normal de espera este solver merece (modelo que pensa devagar)."""
+        return 1.0
 
     @property
     def aceita_imagens(self) -> bool:
