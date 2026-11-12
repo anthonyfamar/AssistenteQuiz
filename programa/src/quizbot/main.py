@@ -4,7 +4,7 @@
 #
 # Abre a janelinha, que mostra primeiro a tela de escolha do modo:
 #   - Automatico: o programa faz tudo (marca, avanca, envia, confere a revisao, refaz as
-#     tentativas e volta ao curso);
+#     tentativas, volta ao curso e percorre as unidades, fazendo os 2 quizzes de cada uma);
 #   - So sugerir: so mostra a sugestao; o usuario faz o resto.
 # Depois da escolha garante o Chrome do assistente aberto (porta de depuracao 9222) e
 # conecta a ele. O usuario faz login sozinho, sem senha em codigo ou .env. Monta as pecas
@@ -103,6 +103,7 @@ def trabalhar(
             finalizar=automatico,
             memoria=memoria,
             tentativas=automatico,
+            curso=automatico,
         )
         print(f"Conectado ao navegador. Assistente rodando (modo {'automatico' if automatico else 'so sugerir'}).")
         try:
