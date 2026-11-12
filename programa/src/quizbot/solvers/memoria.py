@@ -20,6 +20,8 @@ class SolverComMemoria(Solver):
     def __init__(self, interno: Solver, memoria: Memoria) -> None:
         self._interno = interno
         self._memoria = memoria
+        # O que a memoria fez na ULTIMA questao (so para o registro; vazio = nao sabia nada dela).
+        self.nota = ""
 
     @property
     def nome(self) -> str:
@@ -30,17 +32,25 @@ class SolverComMemoria(Solver):
         return self._interno.aceita_imagens
 
     def solve(self, question: Question) -> Suggestion:
+        self.nota = ""
         identidades = question.identidades
         certa = self._memoria.certa(question)
         if certa in identidades:
+            self.nota = "certa conhecida"
             return Suggestion(
                 indice=identidades.index(certa),
                 explicacao="Você já acertou esta questão antes.",
                 origem="memória",
             )
+        if certa:  # a memoria sabe a certa, mas nenhuma alternativa daqui tem esse texto
+            self.nota = "a memoria tem a certa, mas o texto nao bate com nenhuma alternativa"
 
         erradas = self._memoria.erradas(question)
         restantes = [i for i, ident in enumerate(identidades) if ident not in erradas]
+        if erradas and len(restantes) == len(identidades):  # sabia erradas, mas nenhuma bate: texto mudou?
+            self.nota = f"a memoria tem {len(erradas)} errada(s), mas nenhuma bate com as alternativas"
+        elif erradas and restantes:
+            self.nota = f"{len(identidades) - len(restantes)} errada(s) conhecida(s) tirada(s)"
         if not erradas or not restantes:
             return self._interno.solve(question)
         if len(restantes) == 1:
