@@ -19,7 +19,7 @@ from tkinter import filedialog, ttk
 from dotenv import dotenv_values
 
 from quizbot.chrome import achar_navegador
-from quizbot.config import ARQUIVO_ENV, ORDEM_PADRAO, PROVEDORES, Provedor
+from quizbot.config import ARQUIVO_ENV, ORDEM_PADRAO, PROVEDORES, PROVEDORES_REMOVIDOS, Provedor
 
 LARGURA_TEXTO = 560
 CHAVES_MANTIDAS = ("NOME_PC",)
@@ -201,7 +201,14 @@ class JanelaConfiguracao:
         return None
 
     def _salvar(self) -> None:
-        ordem = self._atuais.get("ORDEM_PROVEDORES") or ORDEM_PADRAO
+        # A ordem que ja existia, sem provedores retirados do programa e COM os que ganharam chave
+        # agora (chave preenchida de provedor fora da ordem nunca seria usada).
+        nomes = [n.strip().lower() for n in (self._atuais.get("ORDEM_PROVEDORES") or ORDEM_PADRAO).split(",")]
+        nomes = [n for n in nomes if n and n not in PROVEDORES_REMOVIDOS]
+        for provedor in PROVEDORES.values():
+            if self._chaves[provedor.nome].get().strip() and provedor.nome not in nomes:
+                nomes.append(provedor.nome)
+        ordem = ",".join(nomes)
         linhas = [
             "# Gerado pela janela de configuracao do AssistenteQuiz. Pode editar na mao se quiser.",
             f"ORDEM_PROVEDORES={ordem}",
