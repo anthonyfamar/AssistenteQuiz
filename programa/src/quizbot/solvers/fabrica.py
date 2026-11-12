@@ -18,6 +18,7 @@ from quizbot.config import (
     COOLDOWN_PROVEDOR,
     ORDEM_PADRAO,
     PROVEDORES,
+    PROVEDORES_REMOVIDOS,
     TIMEOUT_API,
     TIMEOUT_RAPIDO,
     Provedor,
@@ -69,6 +70,9 @@ def _criar(provedor: Provedor) -> list[ApiSolver]:
                 fator,
             )
         )
+    for reserva in provedor.reservas_so_texto:  # nao enxergam imagem: so respondem texto
+        if reserva != modelo:
+            solvers.append(ApiSolver(provedor.nome, client, reserva, None, provedor.max_imagens, apelido, fator))
     return solvers
 
 
@@ -81,7 +85,10 @@ def montar_solver(ao_mudar_problemas: Callable[[list[str]], None] | None = None)
     for nome in (n.strip().lower() for n in ordem.split(",")):
         provedor = PROVEDORES.get(nome)
         if provedor is None:
-            print(f"[aviso] provedor desconhecido em ORDEM_PROVEDORES: {nome!r}")
+            if nome in PROVEDORES_REMOVIDOS:
+                print(f"[aviso] {nome!r} foi retirado do programa ({PROVEDORES_REMOVIDOS[nome]}); pode tirar de ORDEM_PROVEDORES.")
+            else:
+                print(f"[aviso] provedor desconhecido em ORDEM_PROVEDORES: {nome!r}")
             continue
         solvers.extend(_criar(provedor))
 
