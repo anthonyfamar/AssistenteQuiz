@@ -53,6 +53,23 @@ assert espera_da_cota(erro429("sem informacao nenhuma")) is None  # o servidor n
 e402 = APIStatusError("402", response=httpx.Response(402, request=REQ), body={"message": "Add usage credits"})
 assert espera_da_cota(e402) is None
 assert "crédito" in explicar_erro(e402) and "crédito" in frase_curta(e402)
+# 404 (modelo que saiu do ar, ex.: "no longer available to new users") e 401/402/403 nao melhoram esperando
+from quizbot.solvers.api import ApiSolver
+for codigo in (401, 402, 403, 404, 429, 503):
+    erro_http = APIStatusError(str(codigo), response=httpx.Response(codigo, request=REQ), body={"message": "x"})
+
+    class Cliente:
+        class chat:
+            class completions:
+                @staticmethod
+                def create(**kw):
+                    raise erro_http
+
+    try:
+        ApiSolver("p", Cliente, "m").solve(Question("q", ("a", "b")))
+    except SolverError as erro_solver:
+        assert erro_solver.permanente == (codigo in (401, 402, 403, 404)), (codigo, erro_solver.permanente)
+print("erros permanentes: 401, 402, 403 e 404; 429 e 503 nao ok")
 print("tempo de espera lido de Gemini, Groq (texto e cabecalho) e OpenRouter; 402 explicado ok")
 
 assert formatar_espera(1.4) == "1 s" and formatar_espera(0.2) == "1 s"
@@ -102,11 +119,11 @@ def quieto(fn, *args):
         return fn(*args)
 
 
-# 2a) Groq: limite por minuto de 1,4 s. Gemini fora por 6 h, Ollama pede credito.
+# 2a) Groq: limite por minuto de 1,4 s. Gemini fora por 6 h, um provedor pede credito (402).
 gemini = Falso("gemini", "Gemini", [SolverError("g", motivo="limite de uso (cota) atingido", espera_sugerida=21351.0)])
 groq_s = Falso("groq", "Groq", [SolverError("q", motivo="limite de uso (cota) atingido", espera_sugerida=1.4), ok("groq")])
-ollama = Falso("ollama-cloud", "Ollama Cloud", [SolverError("o", motivo="pede crédito pago (erro 402)", permanente=True)])
-fb = FallbackSolver([gemini, groq_s, ollama], cooldown=30.0)  # cooldown LONGO: provar que nao e ele que segura o Groq
+pago = Falso("pago", "Provedor Pago", [SolverError("o", motivo="pede crédito pago (erro 402)", permanente=True)])
+fb = FallbackSolver([gemini, groq_s, pago], cooldown=30.0)  # cooldown LONGO: provar que nao e ele que segura o Groq
 
 try:
     quieto(fb.solve, Q)
@@ -116,21 +133,21 @@ except SolverError as erro:
     espera_vista = erro.espera_sugerida
 print("todos falharam, mas a que volta primeiro pediu 1,4 s: espera_sugerida =", f"{espera_vista:.1f} s")
 
-# o Ollama (402) saiu de vez: sem vigia, e nao e chamado de novo
+# o provedor que pede crédito (402) saiu de vez: sem vigia, e nao e chamado de novo
 assert 2 in fb._permanentes and 2 not in fb._vigias
 time.sleep(1.6)  # passou o 1,4 s do Groq (NAO os 30 s do cooldown)
 sugestao = quieto(fb.solve, Q)
 assert sugestao.origem == "groq", sugestao
-assert ollama.chamadas == 1, f"o Ollama (pede credito) foi chamado de novo: {ollama.chamadas}x"
+assert pago.chamadas == 1, f"o provedor pago (pede credito) foi chamado de novo: {pago.chamadas}x"
 assert gemini.chamadas == 1  # o Gemini tem 6 h pela frente: nao foi tentado de novo
-print("Groq voltou no instante pedido (1,4 s), sem esperar 30 s; Gemini (6 h) e Ollama (402) nao foram insistidos ok")
+print("Groq voltou no instante pedido (1,4 s), sem esperar 30 s; Gemini (6 h) e provedor pago (402) nao foram insistidos ok")
 
 # 2b) ninguem responde: o aviso diz o que acontece com cada um e quanto falta
 gemini2 = Falso("gemini", "Gemini", [SolverError("g", motivo="limite de uso (cota) atingido", espera_sugerida=21351.0)])
 groq2 = Falso("groq", "Groq", [SolverError("q", motivo="limite de uso por dia atingido", espera_sugerida=432.0)])
 router = Falso("openrouter", "OpenRouter", [SolverError("r", motivo="limite de uso (cota) atingido")])  # sem previsao
-ollama2 = Falso("ollama-cloud", "Ollama Cloud", [SolverError("o", motivo="pede crédito pago (erro 402)", permanente=True)])
-fb2 = FallbackSolver([gemini2, groq2, router, ollama2], cooldown=30.0)
+pago2 = Falso("pago", "Provedor Pago", [SolverError("o", motivo="pede crédito pago (erro 402)", permanente=True)])
+fb2 = FallbackSolver([gemini2, groq2, router, pago2], cooldown=30.0)
 try:
     quieto(fb2.solve, Q)
     raise AssertionError("devia falhar")
@@ -139,7 +156,7 @@ except SolverError as erro:
     assert "Gemini: limite de uso (cota) atingido, volta em 5 h 56 min, às " in texto, texto
     assert "Groq: limite de uso por dia atingido, volta em 8 min" in texto, texto
     assert "OpenRouter: limite de uso (cota) atingido, sem previsão" in texto, texto
-    assert "Ollama Cloud: pede crédito pago (erro 402), fora da fila" in texto, texto
+    assert "Provedor Pago: pede crédito pago (erro 402), fora da fila" in texto, texto
     assert "Volte mais tarde: a primeira a voltar é Groq, em 8 min." in texto, texto
     assert 430 <= erro.espera_sugerida <= 432.5
 print("aviso quando ninguem responde:\n   " + texto)
