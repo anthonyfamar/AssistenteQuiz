@@ -7,16 +7,26 @@
 #
 #                   Rapido, sem prender a resposta:
 #                   - cada tentativa espera pouco (timeout_rapido, ~5 s) se ainda ha outro modelo
-#                     livre depois; so o ultimo da fila espera o tempo cheio (timeout_final);
+#                     livre depois; so o ultimo da fila espera o tempo cheio (timeout_final).
+#                     Modelo que pensa devagar tem um fator (Solver.fator_de_espera);
 #                   - um modelo que falha fica PAUSADO e uma thread em segundo plano ("vigia")
 #                     testa, de tempos em tempos, se ele voltou (um pedido minusculo, sondar()).
 #                     So quando o teste passa ele volta para a fila. As respostas nunca esperam
 #                     por esse teste. O intervalo dobra a cada teste que falha (ate um teto);
-#                   - se a cota acabou (erro 429), o vigia espera o tempo que o servidor pediu
-#                     (ate 1 h) antes de testar;
+#                   - se o servidor disse QUANTO esperar (erro 429: "tente de novo em 1,4 s" ou
+#                     "em 5 h 55 min"), vale esse tempo exato: o modelo volta para a fila no
+#                     instante combinado, sem esperar o teste (quem pediu 1,4 s nao fica 30 s fora).
+#                     O vigia dorme no maximo 1 h de cada vez, mas o tempo real fica guardado;
+#                   - erro que esperar nao resolve (chave recusada, "pede credito pago") tira o
+#                     modelo da fila ate o programa abrir de novo, sem testes em segundo plano;
 #                   - se dois modelos do MESMO provedor falham DEMORANDO na mesma questao, o
 #                     provedor inteiro e pausado e o programa vai direto ao proximo (falha
 #                     rapida nao conta: o proximo modelo do provedor ainda e tentado).
+#
+#                   Quando NENHUM responde, o erro diz a situacao de cada provedor e quanto falta
+#                   para ele voltar ("Gemini: volta em 5 h 56 min (as 04:31)"). O SolverError leva
+#                   em espera_sugerida o menor desses tempos: o assistente espera sozinho se for
+#                   curto (segundos); se for longo, o usuario ve o aviso e volta mais tarde.
 #
 #                   Falha nunca passa em silencio:
 #                   - o registro (log) recebe o erro COMPLETO: modelo, tempo, codigo HTTP,
@@ -28,6 +38,7 @@ import threading
 import time
 import traceback
 from collections.abc import Callable
+from datetime import datetime, timedelta
 
 from quizbot.models import Question, Suggestion
 from quizbot.solvers.base import Solver, SolverError
@@ -40,6 +51,28 @@ TETO_PAUSA_VEZES = 6
 IMAGEM_VEZES = 2
 # A falha so e "lenta" (conta contra o provedor) se demorou pelo menos esta fracao do limite.
 FRACAO_LENTA = 0.8
+# O vigia dorme no maximo isto (s) de cada vez, mesmo que o servidor peca mais (cota do dia).
+TETO_ESPERA_DO_VIGIA = 3600.0
+
+
+def formatar_espera(segundos: float) -> str:
+    """'40 s', '12 min', '5 h 56 min' (minutos arredondados para cima: melhor sobrar que faltar)."""
+    total = max(int(round(segundos)), 0)
+    if total < 60:
+        return f"{max(total, 1)} s"
+    minutos = (total + 59) // 60
+    if minutos < 60:
+        return f"{minutos} min"
+    horas, resto = divmod(minutos, 60)
+    return f"{horas} h" if resto == 0 else f"{horas} h {resto:02d} min"
+
+
+def _quando(segundos: float) -> str:
+    """O tempo que falta e, a partir de 1 h, a hora do relogio em que acaba ("5 h 56 min, as 04:31")."""
+    texto = formatar_espera(segundos)
+    if segundos >= 3600:
+        texto += f", às {(datetime.now() + timedelta(seconds=segundos)):%H:%M}"
+    return texto
 
 
 class FallbackSolver(Solver):
@@ -61,9 +94,12 @@ class FallbackSolver(Solver):
 
         self._trava = threading.Lock()  # a thread principal e os vigias mexem no mesmo estado
         self._pausados: set[int] = set()  # posicoes fora da fila ate o teste passar
+        self._permanentes: set[int] = set()  # fora da fila ate o programa abrir de novo
         self._vigias: set[int] = set()  # posicoes que ja tem um vigia rodando
         self._espera_minima: dict[int, float] = {}  # posicao -> segundos pedidos pelo servidor (cota)
+        self._volta_em: dict[int, float] = {}  # posicao -> instante (monotonic) em que o servidor libera
         self._falhas_seguidas: dict[int, int] = {}  # posicao -> falhas sem nenhum acerto no meio
+        self._ultimo_motivo: dict[str, str] = {}  # provedor -> por que falhou da ultima vez
 
     @property
     def nome(self) -> str:
@@ -81,14 +117,25 @@ class FallbackSolver(Solver):
         return min(self._cooldown * 2 ** (falhas - 1), self._cooldown * TETO_PAUSA_VEZES)
 
     def _pausar(self, posicao: int, espera_minima: float = 0.0) -> None:
-        # espera_minima: o servidor pediu para esperar (cota do dia acabou): nao testa antes disso.
+        # espera_minima: o servidor disse quanto esperar (cota): nao testa nem tenta antes disso.
         with self._trava:
             self._pausados.add(posicao)
             self._espera_minima[posicao] = max(self._espera_minima.get(posicao, 0.0), espera_minima)
+            if espera_minima > 0:
+                self._volta_em[posicao] = time.monotonic() + espera_minima
+            else:
+                self._volta_em.pop(posicao, None)
             if posicao in self._vigias:
                 return
             self._vigias.add(posicao)
         threading.Thread(target=self._vigiar, args=(posicao,), daemon=True, name=f"vigia-{posicao}").start()
+
+    def _pausar_para_sempre(self, posicao: int) -> None:
+        # Esperar nao resolve (chave recusada, pede credito pago): sem vigia, sem testes.
+        with self._trava:
+            self._pausados.add(posicao)
+            self._permanentes.add(posicao)
+            self._volta_em.pop(posicao, None)
 
     def _vigiar(self, posicao: int) -> None:
         # Roda numa thread propria. Testa o modelo pausado ate ele responder; a thread principal
@@ -97,7 +144,10 @@ class FallbackSolver(Solver):
         while True:
             with self._trava:
                 minima = self._espera_minima.pop(posicao, 0.0)
-            time.sleep(max(self._pausa_para(posicao), minima))
+            if minima > 0:  # o servidor disse quanto: dorme esse tempo (mais 1 s de folga), sem o cooldown
+                time.sleep(min(minima, TETO_ESPERA_DO_VIGIA) + 1.0)
+            else:
+                time.sleep(self._pausa_para(posicao))
             try:
                 voltou = solver.sondar(self._timeout_rapido)
             except Exception as erro:  # noqa: BLE001 - o vigia precisa sobreviver a qualquer coisa
@@ -107,6 +157,7 @@ class FallbackSolver(Solver):
                 with self._trava:
                     self._pausados.discard(posicao)
                     self._vigias.discard(posicao)
+                    self._volta_em.pop(posicao, None)
                     self._falhas_seguidas.pop(posicao, None)
                 print(f"[aviso] {solver.descricao} voltou a funcionar e entrou de novo na fila.")
                 return
@@ -119,7 +170,14 @@ class FallbackSolver(Solver):
 
     def _esta_pausado(self, posicao: int) -> bool:
         with self._trava:
-            return posicao in self._pausados
+            if posicao not in self._pausados:
+                return False
+            if posicao in self._permanentes:
+                return True
+            # O servidor disse ate quando: passou da hora, o modelo ja pode ser tentado (nao precisa
+            # esperar o vigia). Se falhar de novo, volta para a pausa com o novo tempo.
+            volta = self._volta_em.get(posicao)
+            return not (volta is not None and time.monotonic() >= volta)
 
     # --- registro e alerta ---
 
@@ -139,7 +197,12 @@ class FallbackSolver(Solver):
         # Bloco delimitado e em ordem: primeiro o que um humano precisa (o que houve, o que o
         # programa fez), depois o rastro tecnico. Da para copiar o bloco inteiro e colar numa IA.
         alvo = f"todos os modelos de {solver.nome}" if provedor_todo else "este modelo"
-        acao = f"tirou {alvo} da fila (teste em segundo plano daqui a {int(pausa)} s)"
+        if erro.permanente:
+            acao = f"tirou {alvo} da fila até o programa ser aberto de novo (esperar não resolve)"
+        elif erro.espera_sugerida is not None:
+            acao = f"tirou {alvo} da fila: o servidor pediu para esperar {_quando(erro.espera_sugerida)}"
+        else:
+            acao = f"tirou {alvo} da fila (teste em segundo plano daqui a {int(pausa)} s)"
         if proximo is not None:
             acao += f" e passou para {proximo.descricao}."
         else:
@@ -160,10 +223,51 @@ class FallbackSolver(Solver):
                 return solver
         return None
 
-    def _limite_de_espera(self, question: Question, ha_proximo: bool) -> float:
+    def _limite_de_espera(self, question: Question, ha_proximo: bool, solver: Solver) -> float:
         # Com outro modelo livre depois, nao vale esperar muito; o ultimo da fila espera tudo.
-        limite = self._timeout_rapido if ha_proximo else self._timeout_final
+        # Modelo que pensa devagar (fator > 1) ganha mais tempo.
+        limite = (self._timeout_rapido if ha_proximo else self._timeout_final) * solver.fator_de_espera
         return limite * IMAGEM_VEZES if question.imagens else limite
+
+    # --- quando ninguem responde: a situacao de cada provedor ---
+
+    def _situacao_dos_provedores(self) -> tuple[list[str], tuple[float, str] | None]:
+        """Uma frase por provedor e (tempo em s, nome) de quem volta primeiro (None = ninguem sabe)."""
+        agora = time.monotonic()
+        grupos: dict[str, list[int]] = {}
+        for i, solver in enumerate(self._solvers):
+            grupos.setdefault(solver.nome, []).append(i)
+        frases: list[str] = []
+        menor: tuple[float, str] | None = None
+        for nome, posicoes in grupos.items():
+            apelido = self._solvers[posicoes[0]].apelido
+            motivo = self._ultimo_motivo.get(nome, "sem resposta")
+            vivos = [i for i in posicoes if i not in self._permanentes]
+            if not vivos:
+                frases.append(f"{apelido}: {motivo}, fora da fila")
+                continue
+            tempos = [max(self._volta_em[i] - agora, 0.0) for i in vivos if i in self._volta_em]
+            if len(tempos) == len(vivos):  # o servidor disse quanto falta para todos os modelos dele
+                falta = min(tempos)
+                frases.append(f"{apelido}: {motivo}, volta em {_quando(falta)}")
+                if menor is None or falta < menor[0]:
+                    menor = (falta, apelido)
+            else:
+                frases.append(f"{apelido}: {motivo}, sem previsão (o programa testa de novo sozinho)")
+        return frases, menor
+
+    def _erro_de_ninguem_responde(self) -> SolverError:
+        frases, primeiro = self._situacao_dos_provedores()
+        if primeiro is not None:
+            falta, quem = primeiro
+            final = f"Volte mais tarde: a primeira a voltar é {quem}, em {_quando(falta)}."
+        else:
+            falta = None
+            final = "Sem previsão: tente de novo daqui a alguns minutos."
+        return SolverError(
+            "nenhuma IA respondeu agora. " + " | ".join(frases) + ". " + final,
+            espera_sugerida=falta,
+        )
 
     # --- o trabalho de verdade ---
 
@@ -179,21 +283,21 @@ class FallbackSolver(Solver):
                 "(preencha *_MODEL_VISAO no .env)"
             )
 
-        erros: list[str] = []
         avisos: list[str] = []
         falhas_do_provedor: dict[str, int] = {}  # nesta questao: quantos modelos de cada provedor falharam
         for i, solver in candidatos:
             if self._esta_pausado(i):
                 continue
-            limite = self._limite_de_espera(question, self._proximo_livre(candidatos, i) is not None)
+            limite = self._limite_de_espera(question, self._proximo_livre(candidatos, i) is not None, solver)
             inicio = time.monotonic()
             try:
                 sugestao = solver.solve_com_limite(question, limite)
             except SolverError as erro:
                 with self._trava:
                     self._falhas_seguidas[i] = self._falhas_seguidas.get(i, 0) + 1
+                    self._ultimo_motivo[solver.nome] = erro.motivo or erro.resumo
                 espera = erro.espera_sugerida or 0.0
-                pausa = max(self._pausa_para(i), espera)
+                pausa = min(espera, TETO_ESPERA_DO_VIGIA) + 1.0 if espera > 0 else self._pausa_para(i)
                 # So falha LENTA (esperou quase o limite) conta contra o provedor: falha rapida
                 # (cota, 503) nao custa nada e o proximo modelo dele pode estar funcionando.
                 if time.monotonic() - inicio >= limite * FRACAO_LENTA:
@@ -201,12 +305,14 @@ class FallbackSolver(Solver):
                 # Dois modelos do mesmo provedor demoraram e falharam: o provedor esta mal. Tira
                 # todos os modelos dele da fila e segue para o proximo provedor.
                 provedor_todo = falhas_do_provedor.get(solver.nome, 0) >= FALHAS_PARA_PAUSAR_PROVEDOR
-                self._pausar(i, espera)
+                if erro.permanente:
+                    self._pausar_para_sempre(i)
+                else:
+                    self._pausar(i, espera)
                 if provedor_todo:
                     for j, outro in enumerate(self._solvers):
                         if outro.nome == solver.nome:
                             self._pausar(j)
-                erros.append(erro.resumo)
                 avisos.append(erro.aviso)
                 self._registrar_falha(
                     solver, erro, self._proximo_livre(candidatos, i), pausa, provedor_todo
@@ -215,7 +321,7 @@ class FallbackSolver(Solver):
                 continue
             with self._trava:
                 self._falhas_seguidas.pop(i, None)  # acertou: o proximo teste volta a ser o curto
+                self._pausados.discard(i)  # era um modelo liberado pelo relogio: voltou de vez
+                self._volta_em.pop(i, None)
             return sugestao
-        if not erros:
-            raise SolverError("todos os provedores estao em pausa, tente a proxima questao")
-        raise SolverError(" | ".join(erros))
+        raise self._erro_de_ninguem_responde()
