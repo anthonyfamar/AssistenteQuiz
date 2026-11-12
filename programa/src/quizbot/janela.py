@@ -9,6 +9,12 @@
 #                    Se um provedor de IA falhar, mostra um alerta simples no rodape por alguns
 #                    segundos (SEGUNDOS_ALERTA) e o apaga sozinho; os detalhes ficam so no
 #                    registro, para o desenvolvedor.
+#                    Se estiver minimizada, a janela volta sozinha para a frente quando precisa de
+#                    quem esta usando (a pergunta do fim do curso, a parada por erro, uma acao que
+#                    falhou). Se marcar ou avancar falhar, a sugestao CONTINUA na tela e aparece
+#                    o botao "Tentar de novo" (oferecer_tentar_de_novo).
+#                    Ao fim do curso, perguntar_outra_materia() mostra dois botoes ("Outra
+#                    materia" e "Encerrar") e espera o clique de quem esta usando.
 #                    Todo aviso fica pelo menos SEGUNDOS_ALERTA na tela para dar tempo de ler;
 #                    a consulta nunca espera: o letreiro "Consultando a IA..." entra depois do
 #                    aviso, mas uma linha sob o aviso ja diz que a IA esta trabalhando, e a
@@ -18,6 +24,7 @@
 # em outra. Por isso mostrar(), consultando() e avisar() so colocam o trabalho numa
 # fila; a janela esvazia a fila de tempos em tempos (veja executar()).
 import queue
+import threading
 import time
 import tkinter as tk
 from collections.abc import Callable
@@ -72,6 +79,26 @@ class JanelaPresenter(Presenter):
         self._botao_pasta = self._criar_botao(
             self._conteudo, "Abrir a pasta", self._abrir_pasta_do_log, DESTAQUE, FUNDO
         )
+        # Pergunta do fim do curso ("Outra materia" ou "Encerrar"): os dois botoes ficam num quadro
+        # que so aparece quando o assistente pergunta (veja perguntar_outra_materia).
+        self._pergunta = tk.Frame(self._conteudo, bg=FUNDO)
+        self._criar_botao(
+            self._pergunta, "Outra matéria", lambda: self._responder_pergunta(True), DESTAQUE, FUNDO
+        ).pack(side="left")
+        self._criar_botao(
+            self._pergunta, "Encerrar", lambda: self._responder_pergunta(False), "#374151", TEXTO
+        ).pack(side="left", padx=(MARGEM // 2, 0))
+        self._pergunta_visivel = False
+        self._entregar_resposta: Callable[[bool], None] | None = None
+        self._fechada = False
+        # Falha ao marcar/avancar: a mensagem e o botao "Tentar de novo" ficam abaixo da sugestao
+        # (que NAO e apagada). Somem quando a questao muda.
+        self._aviso_acao = self._criar_rotulo(("Segoe UI", 9, "bold"), cor=AVISO)
+        self._botao_repetir = self._criar_botao(
+            self._conteudo, "Tentar de novo", self._clicou_repetir, DESTAQUE, FUNDO
+        )
+        self._repetir_visivel = False
+        self._tentar_de_novo: Callable[[], None] | None = None
         self._alerta_visivel = False
         self._timer_alerta: str | None = None  # id do after() que apaga o alerta
         self._livre_em = 0.0  # ate quando o aviso atual fica na tela (time.monotonic)
@@ -129,13 +156,25 @@ class JanelaPresenter(Presenter):
         self._explicacao.config(text=explicacao)
         self._rodape.config(text=rodape, fg=SUAVE)
         self._em_erro = False
+        self._pergunta_visivel = False
+        self._repetir_visivel = False
         self._atualizar_rodape()
 
     def _atualizar_rodape(self) -> None:
-        # Alerta e botao ficam sempre no fim, nesta ordem. So aparecem quando ha motivo:
-        # o alerta, se algum provedor de IA falhou; o botao, so no erro inesperado.
+        # A pergunta, a falha da acao (com "Tentar de novo"), o alerta e o botao ficam sempre no
+        # fim, nesta ordem. So aparecem quando ha motivo: a pergunta, ao fim do curso; a falha, se
+        # nao deu para marcar/avancar; o alerta, se algum provedor de IA falhou; o botao da pasta,
+        # so no erro inesperado.
+        self._pergunta.pack_forget()
+        self._aviso_acao.pack_forget()
+        self._botao_repetir.pack_forget()
         self._alerta.pack_forget()
         self._botao_pasta.pack_forget()
+        if self._pergunta_visivel:
+            self._pergunta.pack(anchor="w", padx=MARGEM, pady=(MARGEM // 2, 0))
+        if self._repetir_visivel:
+            self._aviso_acao.pack(fill="x", padx=MARGEM, pady=(MARGEM // 2, 0))
+            self._botao_repetir.pack(anchor="w", padx=MARGEM, pady=(MARGEM // 2, 0))
         if self._alerta_visivel:
             self._alerta.pack(fill="x", padx=MARGEM, pady=(MARGEM // 2, 0))
         if self._em_erro:
@@ -209,6 +248,56 @@ class JanelaPresenter(Presenter):
         if self._pendentes:
             self._agendar_pendentes()
 
+    def _trazer_para_a_frente(self) -> None:
+        # Com a janela minimizada ninguem veria a pergunta nem o aviso de parada: restaura.
+        try:
+            if self._raiz.state() == "iconic":
+                self._raiz.deiconify()
+            self._raiz.lift()
+        except tk.TclError:  # a janela ja foi fechada
+            pass
+
+    def _mostrar_repeticao(self, mensagem: str, tentar: Callable[[], None]) -> None:
+        # NAO usa _definir: a sugestao que ja esta na tela continua la. So acrescenta a mensagem e o
+        # botao, e traz a janela para a frente (se estiver minimizada, e quando o usuario precisa).
+        self._aviso_acao.config(text="⚠ " + mensagem)
+        self._tentar_de_novo = tentar
+        self._repetir_visivel = True
+        self._atualizar_rodape()
+        self._trazer_para_a_frente()
+
+    def _clicou_repetir(self) -> None:
+        tentar, self._tentar_de_novo = self._tentar_de_novo, None
+        if tentar is None:  # clique repetido
+            return
+        self._repetir_visivel = False
+        self._atualizar_rodape()
+        tentar()  # so avisa o assistente; quem repete e a thread dele
+
+    def _mostrar_pergunta(self, entregar: Callable[[bool], None]) -> None:
+        self._trazer_para_a_frente()
+        self._entregar_resposta = entregar
+        self._definir(
+            "CURSO CONCLUÍDO",
+            "Quer conferir outra matéria?",
+            DESTAQUE,
+            "Outra matéria: abra a matéria no navegador e eu confiro de novo. "
+            "Encerrar: fecho o programa.",
+        )
+        self._pergunta_visivel = True
+        self._atualizar_rodape()
+
+    def _responder_pergunta(self, outra_materia: bool) -> None:
+        entregar, self._entregar_resposta = self._entregar_resposta, None
+        if entregar is None:  # clique repetido
+            return
+        if outra_materia:
+            self._definir("AGUARDANDO", "Abra a outra matéria no navegador.", SUAVE)
+        else:
+            self._definir("ENCERRANDO", "Até a próxima!", SUAVE)
+            self._raiz.after(1200, self._fechar)
+        entregar(outra_materia)
+
     def _furar_a_fila(self) -> None:
         # A sugestao (ou o erro) aparece agora: esquece o que esperava a vez.
         if self._timer_pendentes is not None:
@@ -219,6 +308,7 @@ class JanelaPresenter(Presenter):
 
     def _erro(self, pasta_log: str) -> None:
         self._furar_a_fila()
+        self._trazer_para_a_frente()
         self._pasta_log = Path(pasta_log)
         self._definir(
             "ERRO",
@@ -260,7 +350,8 @@ class JanelaPresenter(Presenter):
         self._criar_rotulo(("Segoe UI", 10, "bold"), tela, DESTAQUE).config(text="AUTOMÁTICO")
         self._criar_rotulo(("Segoe UI", 10), tela).config(
             text="Faz tudo sozinho: lê cada questão, marca a resposta, avança, envia o quiz, "
-            "confere o que errou e tenta de novo se não tirar a nota máxima."
+            "confere o que errou, tenta de novo se não tirar a nota máxima e percorre "
+            "as unidades do curso, fazendo os quizzes de cada uma."
         )
         self._criar_rotulo(("Segoe UI", 9, "bold"), tela, AVISO).config(
             text="Atenção: enviar o quiz não tem volta."
@@ -323,6 +414,34 @@ class JanelaPresenter(Presenter):
     def problemas_nos_provedores(self, problemas: list[str]) -> None:
         self._fila.put(lambda: self._mostrar_problemas(problemas))
 
+    def oferecer_tentar_de_novo(self, mensagem: str, tentar: Callable[[], None]) -> None:
+        print(f"[aviso] {mensagem}")
+        self._fila.put(lambda: self._mostrar_repeticao(mensagem, tentar))
+
+    def chamar_atencao(self) -> None:
+        self._fila.put(self._trazer_para_a_frente)
+
+    def perguntar_outra_materia(self, esperar: Callable[[float], bool] | None = None) -> bool:
+        # Roda na thread do assistente: mostra a pergunta (depois do aviso que estiver na tela)
+        # e espera o clique. Se a janela for fechada enquanto espera, devolve False (encerrar).
+        # `esperar` mantem o navegador sendo atendido enquanto isso (a pagina nao pode ficar parada).
+        resposta: dict[str, bool] = {}
+        pronta = threading.Event()
+
+        def entregar(valor: bool) -> None:
+            resposta["valor"] = valor
+            pronta.set()
+
+        self._fila.put(lambda: self._segurar(lambda: self._mostrar_pergunta(entregar)))
+        while not pronta.is_set():
+            if self._fechada:
+                return False
+            if esperar is None:
+                pronta.wait(0.2)
+            elif esperar(0.2):  # pediram para parar (ex.: o programa esta sendo encerrado)
+                return False
+        return resposta["valor"]
+
     # --- ciclo de vida ---
 
     def _processar_fila(self) -> None:
@@ -339,6 +458,9 @@ class JanelaPresenter(Presenter):
         self._raiz.mainloop()
 
     def _fechar(self) -> None:
+        if self._fechada:
+            return
+        self._fechada = True
         if self._ao_fechar is not None:
             self._ao_fechar()
         self._raiz.destroy()
