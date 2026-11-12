@@ -52,7 +52,8 @@ def _criar(provedor: Provedor) -> list[ApiSolver]:
     )
     # Nome curto para a janela: "Gemini (Google)" vira "Gemini".
     apelido = provedor.rotulo.split(" (")[0] or provedor.nome
-    solvers = [ApiSolver(provedor.nome, client, modelo, modelo_visao, provedor.max_imagens, apelido)]
+    fator = provedor.fator_de_espera
+    solvers = [ApiSolver(provedor.nome, client, modelo, modelo_visao, provedor.max_imagens, apelido, fator)]
     for reserva in provedor.modelos_reserva:
         if reserva == modelo:
             continue
@@ -65,6 +66,7 @@ def _criar(provedor: Provedor) -> list[ApiSolver]:
                 reserva if modelo_visao else None,
                 provedor.max_imagens,
                 apelido,
+                fator,
             )
         )
     return solvers
