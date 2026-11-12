@@ -101,16 +101,17 @@ Todos têm plano gratuito e usam a API no formato compatível com OpenAI, então
 | Gemini (Google AI Studio) | [aistudio.google.com](https://aistudio.google.com) | `GEMINI_API_KEY`, `GEMINI_MODEL` |
 | Groq | [console.groq.com](https://console.groq.com) | `GROQ_API_KEY`, `GROQ_MODEL` |
 | OpenRouter | [openrouter.ai](https://openrouter.ai) | `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` |
-| Ollama Cloud | [ollama.com/settings/keys](https://ollama.com/settings/keys) | `OLLAMA_API_KEY`, `OLLAMA_CLOUD_MODEL` |
 
-`ORDEM_PROVEDORES` define a ordem de tentativa, por exemplo `gemini,groq,openrouter,ollama-cloud`. Se um provedor falhar (cota, erro, formato errado), o programa passa para o próximo e deixa o que falhou **em pausa por 60 segundos**.
+`ORDEM_PROVEDORES` define a ordem de tentativa, por exemplo `gemini,groq,openrouter`. Se um provedor falhar (cota, erro, formato errado), o programa passa para o próximo e deixa o que falhou fora da fila, testando-o de novo em segundo plano. Quando o servidor diz **quanto falta** (limite por minuto de poucos segundos, ou a cota do dia em horas), vale esse tempo exato. Chave recusada ou "pede crédito pago" (erro 402) tira o modelo da fila até abrir o programa de novo. Se **nenhuma** IA responder, o aviso na janelinha diz a situação de cada uma e quanto falta para a primeira voltar (por exemplo, "Gemini volta em 5 h 56 min, às 04:31"), e o botão **Tentar de novo** continua lá. Se a que volta primeiro pedir só alguns segundos, o programa espera e tenta de novo sozinho.
 
 **Questões com imagem:** cada provedor tem uma variável `..._MODEL_VISAO` (por exemplo `GEMINI_MODEL_VISAO`) com o nome de um modelo **que enxerga**. Questão com imagem só é tentada nos provedores que a têm preenchida, e os que não têm continuam respondendo as questões só de texto. Imagem gasta mais da cota gratuita que texto, então só é enviada quando existe. Fórmulas **não** contam como imagem: viram texto.
 
 **Para não gastar nada:**
-- Gemini: não ative faturamento no projeto.
-- OpenRouter: não compre créditos. O programa só aceita modelo cujo nome termina em `:free`.
-- Ollama Cloud: não adicione créditos.
+- Gemini: não ative faturamento no projeto. A cota do dia é **por modelo** (20 respostas por dia em cada modelo `flash`, no plano gratuito), então o programa tenta vários: `gemini-3.8-flash`, `3.7-flash`, `3.6-flash` e `3-flash-preview`. Alguns modelos (`pro`, `omni`, `gemini-4-*`) têm limite 0 no plano gratuito, e os `2.5` não estão mais disponíveis para contas novas.
+- OpenRouter: não compre créditos. O programa só aceita modelo cujo nome termina em `:free`. No plano gratuito são **50 respostas por dia** (tentativas que falham também contam). Os modelos gratuitos mudam toda hora e os "gemma" vivem saturados; em 11/2026 responderam bem `nvidia/nemotron-3-ultra-550b-a55b:free` (texto) e `nvidia/nemotron-3.5-super-vl:free` (imagem), que levam uns 10 segundos por resposta.
+- **Ollama Cloud e Mistral foram retirados** do programa porque não têm API gratuita de verdade. Ollama: em 11/2026 a chave gratuita recebe erro 402 ("pede crédito ou assinatura") em todos os modelos. Mistral: a documentação oficial diz que o modo gratuito "não inclui acesso à API" e que criar chave exige ativar a cobrança. Se um `.env` antigo ainda citar `ollama-cloud` ou `mistral`, o programa avisa e ignora.
+- Antes de incluir um provedor novo, confira na **documentação oficial** dele se a API é gratuita sem cartão: listas e blogs de terceiros ficam desatualizados.
+- Groq: o limite que mais pega é o de **8.000 tokens por minuto** (renova em segundos) e o de 200 mil tokens por dia. Segundo a documentação oficial, **cada modelo tem o seu próprio limite**, então o programa usa três: `openai/gpt-oss-120b` (principal), `qwen/qwen3.8-27b` (enxerga imagem) e `openai/gpt-oss-20b` (só texto). Quando um bate no limite, o próximo responde.
 
 Os planos gratuitos têm limites e **mudam sem aviso**. Confirme os valores atuais no site de cada provedor. Os nomes de modelo também mudam, então use os que aparecem na documentação deles (por exemplo `gemini-3.5-flash-lite` ou `openai/gpt-oss-120b`).
 
