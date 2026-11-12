@@ -79,7 +79,7 @@ IMPORTANTE:
  - Guarde a chave em segredo. Quem tiver a chave usa a sua cota. Se ela vazar, apague-a
    no site onde foi criada e crie outra.
 
-As outras chaves (Groq, OpenRouter, Ollama Cloud) são OPCIONAIS. Servem de reserva:
+As outras chaves (Groq, OpenRouter) são OPCIONAIS. Servem de reserva:
 se o Gemini falhar ou a cota acabar, o programa tenta a próxima. Cada uma tem o seu
 botão "Como conseguir".
 
