@@ -5,14 +5,15 @@
 #                      ate a porta subir. Se nao conseguir, levanta ChromeError.
 # achar_navegador() -> caminho do navegador: o CAMINHO_NAVEGADOR do .env, se existir,
 #                      senao o primeiro de CAMINHOS_NAVEGADOR que existir.
-# O usuario faz login e navega sozinho nessa janela. O programa so le.
+# O navegador abre com FLAGS_SEM_SONECA (config.py), para continuar trabalhando minimizado.
+# O usuario faz login e navega sozinho nessa janela.
 import os
 import socket
 import subprocess
 import time
 from pathlib import Path
 
-from quizbot.config import CAMINHOS_NAVEGADOR, PERFIL_NAVEGADOR, PORTA_DEBUG
+from quizbot.config import CAMINHOS_NAVEGADOR, FLAGS_SEM_SONECA, PERFIL_NAVEGADOR, PORTA_DEBUG
 
 
 class ChromeError(Exception):
@@ -54,6 +55,7 @@ def garantir_chrome(espera: float = 15.0) -> None:
             executavel,
             f"--remote-debugging-port={PORTA_DEBUG}",
             f"--user-data-dir={PERFIL_NAVEGADOR}",
+            *FLAGS_SEM_SONECA,
         ],
         creationflags=separado,
     )
