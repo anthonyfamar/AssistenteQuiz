@@ -34,6 +34,76 @@ CLASSE_CORRETA = "correct"
 TEXTO_BOTAO_FINALIZAR = "Enviar tudo e terminar"
 SELETOR_CONFIRMAR_FINALIZAR = 'input[id^="id_yuiconfirmyes"]'
 
+# Pagina de RESUMO da tentativa (a que tem o "Enviar tudo e terminar"): uma linha por questao,
+# <tr class="quizsummary8 notyetanswered"> com o numero da questao num link. Antes de enviar o
+# programa confere esta tabela: uma linha com a classe abaixo e uma questao sem resposta.
+SELETOR_TABELA_RESUMO = "table.quizsummaryofattempt"
+CLASSE_NAO_RESPONDIDA = "notyetanswered"
+# Na tela de UMA questao: a alternativa que ja esta marcada (resposta guardada) e o numero
+# da questao ("Questao 8"). Questao ja respondida nao e respondida de novo: so se avanca.
+SELETOR_RADIO_MARCADO = ".que .answer input[type=radio]:checked"
+SELETOR_NUMERO_DA_QUESTAO = ".que .info .qno"
+# Quantas vezes o programa volta do resumo para a MESMA questao sem resposta antes de desistir
+# (e nao enviar). E quantos segundos espera, depois de clicar no numero, a pagina trocar.
+MAX_VISITAS_POR_QUESTAO = 2
+PAUSA_APOS_ABRIR_QUESTAO = 5.0
+
+# CURSO: o menu das unidades (ul.timeline), o titulo da unidade aberta (h1), as atividades
+# dela e o "caminho" (breadcrumb) do topo das paginas de quiz.
+# - Cada <li> do menu tem um link com o nome da unidade e um icone cuja barra de progresso e o
+#   PRIMEIRO numero do linear-gradient (100% = barra cheia). A unidade aberta tem "active".
+# - Atividade feita tem dentro do icone o <i class="... format_list_topics_complete">.
+# - Os dois quizzes que importam sao achados pelo texto do link (o "U3 -" muda de unidade).
+# O menu das unidades aparece tambem nas paginas das atividades (prova, resumo, painel do quiz),
+# cujo endereco tem "/mod/". So vale como pagina do CURSO a que NAO e de uma atividade: sem isso o
+# programa clicaria numa unidade no meio de uma prova e sairia dela.
+FRAGMENTO_URL_ATIVIDADE = "/mod/"
+SELETOR_MENU_UNIDADES = "ul.timeline"
+SELETOR_LINK_UNIDADE = "ul.timeline .timeline-item a"
+SELETOR_TITULO_UNIDADE = ".ct-section-active-topic h1"
+SELETOR_ATIVIDADES = ".ct-list"
+SELETOR_LINK_ATIVIDADE = ".ct-list h3 a"
+CLASSE_ATIVIDADE_CONCLUIDA = "format_list_topics_complete"
+SELETOR_CAMINHO = "ol.breadcrumb li.breadcrumb-item"
+SELETOR_LINK_CURSO = 'ol.breadcrumb a[href*="/course/view.php"]'
+# O quiz e achado pelo NOME INTEIRO: "U<numero> - <trecho>" (sem acento e em minuscula para
+# comparar). So o trecho nao basta: "Pre Aula 4 - U1 - Atividade de Aprendizagem" e
+# "Pos Aula 4 - U1 - Avaliacao da Unidade" sao arquivos de apoio, nao os quizzes.
+# O icone do quiz desempata se houver mais de um candidato (os arquivos tem "icon-add_box").
+CLASSE_ICONE_QUIZ = "icon-library_books"
+# (tipo, trecho do nome, nome para mostrar nos avisos), na ordem em que o programa trabalha.
+QUIZZES_DO_CURSO = (
+    ("aprendizagem", "atividade de aprendizagem", "Atividade de Aprendizagem"),
+    ("avaliacao", "avaliacao da unidade", "Avaliação da Unidade"),
+)
+# CURSOS COM SECOES: a unidade tem "U1 - Secao 1/2/3" no menu e os quizzes ficam DENTRO de cada
+# secao (nao na unidade): "U3S2 - Atividade Diagnostica", "U3S2 - Atividade de Aprendizagem" e,
+# so na secao 3, "U3 - Avaliacao da Unidade". Quais quizzes cada secao tem e lido da pagina.
+# Quem NAO e unidade (ex.: "Livro Didatico", "Avalie sua disciplina") e ignorado: so entra no
+# roteiro o item do menu cujo nome (sem acento, minuscula) combina com PADRAO_NOME_UNIDADE.
+PADRAO_NOME_UNIDADE = r"^unidade\b"
+SELETOR_LINK_SECAO = "ul.timeline .timeline-menu li a"
+# Os tres quizzes que um curso com secoes pode ter (a ordem de trabalho e a da pagina).
+TIPOS_DE_QUIZ = (
+    ("diagnostica", "atividade diagnostica", "Atividade Diagnóstica"),
+    *QUIZZES_DO_CURSO,
+)
+# Ao chegar na pagina do curso, espera antes de comecar (mudar de pagina cancela).
+PAUSA_ANTES_DE_COMECAR_CURSO = 5.0
+# Depois de clicar numa unidade/atividade, espera a pagina trocar antes de decidir de novo.
+PAUSA_APOS_ABRIR_CURSO = 4.0
+# O usuario pode abrir uma unidade/secao quando quiser: a analise recomeca dali. Para saber se a
+# mudanca de pagina foi dele ou do programa: depois de um clique (ou da volta de um quiz) o
+# programa considera "dele" a PRIMEIRA mudanca de pagina ate este tempo (s); e, quando a
+# pagina nova nao deixa ver onde esta (ainda carregando), insiste por este tempo (s).
+TEMPO_DA_NAVEGACAO_NOSSA = 15.0
+TEMPO_PARA_LER_ESCOLHA = 10.0
+# Fora das paginas do curso por este tempo (s), o proximo endereco do curso deixa de contar como
+# escolha do usuario (so passa a ser "onde esta").
+TEMPO_FORA_DO_CURSO = 3.0
+# Quantas vezes tenta abrir a mesma unidade/atividade antes de desistir e avisar.
+MAX_TENTATIVAS_CURSO = 2
+
 # Terminar a revisao (so na pagina de revisao). E um <a>, nao um <input>: o seletor
 # "a." deixa de confundir com o botao "Proxima pagina", que tem a mesma classe.
 SELETOR_BOTAO_TERMINAR_REVISAO = "a.mod_quiz-next-nav"
@@ -50,7 +120,7 @@ TEXTO_SEM_MAIS_TENTATIVAS = "Não são permitidas outras tentativas"
 TEXTO_BOTAO_VOLTAR = "Voltar ao curso"
 # Ao acabar as tentativas (ou tirar a nota maxima), quantos segundos mostrar a nota antes
 # de voltar ao curso.
-PAUSA_ANTES_DE_VOLTAR = 20.0
+PAUSA_ANTES_DE_VOLTAR = 5.0
 # Com tentativas sobrando (nota maxima de primeira) nao existe o botao "Voltar ao curso":
 # o programa volta pelo historico do navegador (a seta de voltar) ate cair na pagina do
 # curso, reconhecida por este pedaco do endereco. Passa pelo maximo de paginas abaixo e,
@@ -66,6 +136,19 @@ INTERVALO_POLLING = 0.5
 # Modo automatico: segundos de espera depois de marcar a alternativa e antes de avancar
 # (da tempo de ver a marca na tela).
 PAUSA_APOS_CLICAR = 1.0
+# Se marcar a alternativa ou avancar falhar, o programa tenta mais uma vez depois deste tempo; se
+# falhar de novo, mostra a sugestao com um botao "Tentar de novo" (nao deixa o usuario sem nada).
+PAUSA_ENTRE_TENTATIVAS = 1.0
+# Toda espera do programa e feita em fatias deste tamanho (segundos), e a cada fatia o Playwright
+# atende o navegador (dormir "parado" deixa as mensagens do navegador sem resposta ate a proxima chamada).
+FATIA_DE_ESPERA = 0.25
+# Depois de enviar a tentativa, a revisao deve ser lida em segundos. Passando deste tempo (s) sem
+# ler, o programa registra o que a pagina mostra e avisa o usuario (nao fica mudo).
+ESPERA_PELA_REVISAO = 20.0
+# Como o programa clica: True = DENTRO da pagina (el.click()), que funciona com o navegador
+# MINIMIZADO; False = clique de mouse simulado do Playwright, que depende de o navegador desenhar a
+# janela (minimizado, o clique funciona mas a confirmacao demora e vira falso erro).
+CLIQUE_PELO_DOM = True
 
 # Memoria (respostas certas e erradas): tudo fica na pasta do usuario, fora do projeto e do
 # Git, ao lado do ambiente do instalador. Cada PC grava so o seu arquivo (memoria-<PC>.json).
@@ -98,6 +181,16 @@ INTERVALO_REGRAVAR = 10.0
 # CAMINHO_NAVEGADOR no .env (a janela de configuracao faz isso).
 PORTA_DEBUG = 9222
 URL_CDP = f"http://localhost:{PORTA_DEBUG}"
+# Para o navegador continuar trabalhando com a janela minimizada ou coberta por outras (senao ele
+# "dorme" as paginas: temporizadores lentos e sem animacao, e o programa nao consegue clicar).
+# Valem so quando o programa abre o navegador; se ele ja estava aberto, feche-o e deixe o
+# programa abrir de novo.
+FLAGS_SEM_SONECA = (
+    "--disable-background-timer-throttling",
+    "--disable-renderer-backgrounding",
+    "--disable-backgrounding-occluded-windows",
+    "--disable-features=CalculateNativeWinOcclusion,IntensiveWakeUpThrottling",
+)
 PERFIL_NAVEGADOR = Path.home() / "chrome-assistente"
 CAMINHOS_NAVEGADOR = (
     Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Google/Chrome/Application/chrome.exe",
@@ -130,6 +223,8 @@ class Provedor:
     # provedor. Escolhidos da mesma linha do modelo principal, so um pouco abaixo (nunca
     # modelos muito antigos). Depois da pausa, o principal e sempre tentado primeiro.
     modelos_reserva: tuple[str, ...] = ()
+    # Modelos que "pensam" antes de responder levam uns 10 s: multiplica o tempo de espera deles.
+    fator_de_espera: float = 1.0
 
 
 # modelo_visao_env = modelo usado nas questoes COM imagem (precisa enxergar). Se ficar
@@ -172,10 +267,23 @@ PROVEDORES = {
         "OPENROUTER_MODEL_VISAO",
         so_free=True,
         rotulo="OpenRouter",
-        dica="Opcional (reserva). Use so modelos terminados em :free e nao compre creditos.",
+        dica=(
+            "Opcional (reserva). Use so modelos terminados em :free e nao compre creditos. "
+            "O plano gratuito permite 50 respostas por dia (tentativas que falham tambem contam)."
+        ),
         url_chave="https://openrouter.ai/keys",
-        modelo_sugerido="google/gemma-4-31b-it:free",
-        modelo_visao_sugerido="google/gemma-4-31b-it:free",
+        # Os modelos gratuitos mudam toda hora e os "gemma" vivem saturados na origem (erro 429
+        # "temporarily rate-limited upstream"). Em 11/2026 estes dois responderam certo; todos
+        # os reservas enxergam imagem (o programa manda imagem tambem para os reservas).
+        modelo_sugerido="nvidia/nemotron-3-ultra-550b-a55b:free",
+        modelo_visao_sugerido="nvidia/nemotron-3.5-super-vl:free",
+        modelos_reserva=(
+            "nvidia/nemotron-3.5-super-vl:free",
+            "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+            "google/gemma-4-31b-it:free",
+            "google/gemma-4-26b-a4b-it:free",
+        ),
+        fator_de_espera=2.0,
     ),
     "ollama-cloud": Provedor(
         "ollama-cloud",
@@ -184,7 +292,10 @@ PROVEDORES = {
         "OLLAMA_CLOUD_MODEL",
         "OLLAMA_CLOUD_MODEL_VISAO",
         rotulo="Ollama Cloud",
-        dica="Opcional (reserva). Nao adicione creditos.",
+        dica=(
+            "Em 11/2026 a chave gratuita recebe erro 402 (pede credito ou assinatura) em todos os "
+            "modelos: sem pagar, nao funciona. Pode deixar em branco."
+        ),
         url_chave="https://ollama.com/settings/keys",
         modelo_sugerido="gemma4:31b",
     ),
@@ -199,6 +310,10 @@ TIMEOUT_API = 15.0  # o ultimo da fila (e o limite padrao do cliente); imagem es
 # Modelo que falhou sai da fila; em segundo plano ele e testado (pedido minusculo) depois
 # deste tempo, que dobra a cada teste que falha (ate 6x). So volta quando o teste passa.
 COOLDOWN_PROVEDOR = 30.0
+# Quando TODAS as IAs falham mas a que volta primeiro pediu so alguns segundos (limite por minuto,
+# comum na Groq), o programa espera esse tempo e tenta de novo uma vez, sozinho. Acima disto, mostra
+# o aviso com quanto falta para cada uma voltar.
+ESPERA_CURTA_DA_IA = 20.0
 # Tempo minimo (segundos) que um aviso fica na janelinha para dar tempo de ler: o alerta de
 # falha da IA (some sozinho depois disso) e os avisos amarelos do corpo da janela (o
 # "Consultando a IA..." seguinte espera a sua vez; a sugestao nunca espera).
