@@ -60,6 +60,7 @@ class JanelaConfiguracao:
         self._chaves: dict[str, tk.StringVar] = {}
         self._modelos: dict[str, tk.StringVar] = {}
         self._modelos_visao: dict[str, tk.StringVar] = {}
+        self._contas: dict[str, tk.StringVar] = {}  # ID da conta (so os provedores que pedem, p. ex. Cloudflare)
         self._entradas_chave: list[ttk.Entry] = []
         self._quadros_avancados: list[ttk.Frame] = []
         for provedor in PROVEDORES.values():
@@ -112,6 +113,14 @@ class JanelaConfiguracao:
         ).pack(side="left", padx=(8, 0))
         self._chaves[provedor.nome] = chave
         self._entradas_chave.append(entrada)
+
+        if provedor.conta_env:
+            linha_conta = ttk.Frame(quadro)
+            linha_conta.pack(fill="x", pady=(4, 0))
+            ttk.Label(linha_conta, text="ID da conta:").pack(side="left")
+            conta = tk.StringVar(value=self._atuais.get(provedor.conta_env) or "")
+            ttk.Entry(linha_conta, textvariable=conta, width=40).pack(side="left", padx=6)
+            self._contas[provedor.nome] = conta
 
         modelo = tk.StringVar(value=self._atuais.get(provedor.modelo_env) or provedor.modelo_sugerido)
         if provedor.modelo_visao_env in self._atuais:
@@ -187,11 +196,13 @@ class JanelaConfiguracao:
         self._mensagem.config(text=texto)
 
     @staticmethod
-    def _validar(provedor: Provedor, chave: str, modelo: str, visao: str) -> str | None:
+    def _validar(provedor: Provedor, chave: str, modelo: str, visao: str, conta: str = "") -> str | None:
         if re.search(r"[\s#'\"]", chave):
             return f"A chave de {provedor.rotulo} tem um caractere invalido (espaco, aspas ou #). Copie de novo, so a chave."
+        if provedor.conta_env and not re.fullmatch(r"[0-9a-fA-F]{32}", conta):
+            return f"O ID da conta de {provedor.rotulo} tem 32 letras e numeros (copie de novo, sem espacos)."
         for nome in (modelo, visao):
-            if not re.fullmatch(r"[\w./:\-]*", nome):
+            if not re.fullmatch(r"[\w./:@\-]*", nome):
                 return f"O nome do modelo '{nome}' ({provedor.rotulo}) tem caracteres invalidos."
             if provedor.so_free and nome and not nome.endswith(":free"):
                 return (
@@ -218,19 +229,17 @@ class JanelaConfiguracao:
             chave = self._chaves[provedor.nome].get().strip()
             modelo = self._modelos[provedor.nome].get().strip() or provedor.modelo_sugerido
             visao = self._modelos_visao[provedor.nome].get().strip()
+            conta = self._contas[provedor.nome].get().strip() if provedor.nome in self._contas else ""
             if chave:
-                erro = self._validar(provedor, chave, modelo, visao)
+                erro = self._validar(provedor, chave, modelo, visao, conta)
                 if erro:
                     self._erro(erro)
                     return
                 ativos += 1
-            linhas += [
-                "",
-                f"# {provedor.rotulo}",
-                f"{provedor.chave_env}={chave}",
-                f"{provedor.modelo_env}={modelo}",
-                f"{provedor.modelo_visao_env}={visao}",
-            ]
+            linhas += ["", f"# {provedor.rotulo}", f"{provedor.chave_env}={chave}"]
+            if provedor.conta_env:
+                linhas.append(f"{provedor.conta_env}={conta}")
+            linhas += [f"{provedor.modelo_env}={modelo}", f"{provedor.modelo_visao_env}={visao}"]
         if ativos == 0:
             self._erro("Cole a chave de pelo menos um provedor. O Gemini e o mais facil.")
             return
