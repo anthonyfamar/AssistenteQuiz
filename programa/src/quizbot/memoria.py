@@ -15,6 +15,9 @@
 #            seu, e a Memoria relê todos de tempos em tempos (INTERVALO_SINCRONIA), entao o
 #            que um PC aprende aparece nos outros sem reiniciar.
 #
+# RevisoesLidas -> lembra (num arquivo proprio, "revisoes-lidas.json") quais revisoes de tentativas este PC
+#            ja leu e guardou, para o programa nao reabrir a mesma revisao a cada execucao.
+#
 # Como a questao e reconhecida (a "chave"): o enunciado + o codigo das imagens que estao
 # no ENUNCIADO (no texto elas aparecem so como [imagem 1]). As imagens das alternativas
 # ficam fora da chave, porque mudam de ordem quando o Moodle embaralha.
@@ -22,9 +25,11 @@
 # Como a alternativa e reconhecida: pela "identidade" (Question.identidades), nunca pela
 # posicao: o texto dela, e se for imagem, o codigo da imagem ([img:3f9a1c...]).
 import hashlib
+import json
 import re
 import time
 from collections.abc import Callable, Iterable
+from pathlib import Path
 
 from quizbot.armazenamento import (
     Armazenamento,
@@ -46,6 +51,43 @@ def _chave(questao: Question) -> str:
     for imagem in questao.imagens[:no_enunciado]:
         resumo.update(imagem.codigo.encode())
     return resumo.hexdigest()
+
+
+class RevisoesLidas:
+    """Quais revisoes de tentativas este PC ja leu e guardou na Memoria (so as lidas, nunca as puladas).
+
+    Serve para o programa NAO abrir de novo, a cada vez, a revisao de uma tentativa que ja foi lida.
+    Fica num arquivo proprio na pasta da memoria ("revisoes-lidas.json", fora do padrao memoria-*.json,
+    entao a Memoria nao o confunde com as respostas). Sem arquivo (arquivo=None) lembra so enquanto o
+    programa esta aberto. Se apagar a memoria para recomecar, apague este arquivo junto.
+    A chave e o attempt= do Moodle (ou "id do quiz#numero da linha" se o link nao o trouxer)."""
+
+    def __init__(self, arquivo: Path | None = None) -> None:
+        self._arquivo = arquivo
+        self._chaves: set[str] = set()
+        if arquivo is not None:
+            try:
+                dados = json.loads(arquivo.read_text(encoding="utf-8"))
+                self._chaves = {str(c) for c in dados.get("lidas", [])}
+            except (OSError, ValueError, AttributeError):  # sem arquivo ou estragado: comeca vazio
+                self._chaves = set()
+
+    def __contains__(self, chave: str) -> bool:
+        return chave in self._chaves
+
+    def add(self, chave: str) -> None:
+        if chave in self._chaves:
+            return
+        self._chaves.add(chave)
+        if self._arquivo is None:
+            return
+        try:
+            self._arquivo.parent.mkdir(parents=True, exist_ok=True)
+            temporario = self._arquivo.with_suffix(".tmp")
+            temporario.write_text(json.dumps({"lidas": sorted(self._chaves)}), encoding="utf-8")
+            temporario.replace(self._arquivo)  # troca inteira: nunca fica um arquivo pela metade
+        except OSError:  # nao grava: vale so ate fechar o programa (a revisao e relida uma vez)
+            pass
 
 
 class Memoria:
