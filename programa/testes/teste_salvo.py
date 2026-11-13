@@ -57,6 +57,7 @@ mem = Memoria(ArmazenamentoEspelhado(ArmazenamentoLocal(pasta, "PC"), nuvem), "P
 # 1) nuvem fora do ar: o local grava, ele CLICA na hora (nao espera a nuvem)
 resp, pres = Resp(), Pres()
 a = AssistenteQuiz(Leitor(), None, pres, responder=resp, finalizar=True, memoria=mem)
+a._enviada_em = 1.0  # o programa acabou de enviar a tentativa: a revisao e dele (ele fecha)
 a._passo(); a._passo()
 assert resp.cliques == 1, resp.cliques
 assert (pasta / "memoria-PC.json").exists() and nuvem.dados == {}
@@ -94,6 +95,7 @@ nuvem3 = Nuvem()
 mem3 = Memoria(ArmazenamentoEspelhado(Disco(), nuvem3), "PC3", relogio=lambda: agora[0])
 resp3, pres3 = Resp(), Pres()
 c = AssistenteQuiz(Leitor(), None, pres3, responder=resp3, finalizar=True, memoria=mem3)
+c._enviada_em = 1.0
 c._passo(); c._passo()
 assert resp3.cliques == 0
 assert len([m for m in pres3.msgs if "salvar" in m]) == 1, pres3.msgs
@@ -109,6 +111,7 @@ nuvem4 = Nuvem(); nuvem4.fora = False
 mem4 = Memoria(ArmazenamentoEspelhado(Disco(), nuvem4), "PC4")
 resp4 = Resp()
 d = AssistenteQuiz(Leitor(), None, Pres(), responder=resp4, finalizar=True, memoria=mem4)
+d._enviada_em = 1.0
 d._passo()
 assert resp4.cliques == 1 and len(nuvem4.dados) == 2
 print("5) so a nuvem gravou: clica ok")
@@ -117,6 +120,7 @@ print("5) so a nuvem gravou: clica ok")
 mem5 = Memoria(ArmazenamentoLocal(Path(tempfile.mkdtemp()), "PC5"), "PC5")
 resp5 = Resp()
 e = AssistenteQuiz(Leitor(), None, Pres(), responder=resp5, finalizar=True, memoria=mem5)
+e._enviada_em = 1.0
 e._passo()
 assert resp5.cliques == 1
 print("TUDO OK")
