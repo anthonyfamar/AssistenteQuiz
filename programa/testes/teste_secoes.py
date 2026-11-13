@@ -287,7 +287,7 @@ with sync_playwright() as p:
     print("fluxo: 2 unidades x 3 secoes = 14 quizzes em ordem; sem ir a 'Aula presencial' nem video; concluido ok")
 
     # ---------- o USUARIO abre uma secao: comeca dali ----------
-    def rodar_com_usuario(gancho_aviso=None, gancho_tick=None, segundos=90):
+    def rodar_com_usuario(gancho_aviso=None, gancho_tick=None, segundos=90, pausa_voltar=0.3):
         curso2 = Curso()
         ctx2 = navegador.new_context()
         ctx2.route("http://quiz.test/**", curso2.atender)
@@ -304,7 +304,8 @@ with sync_playwright() as p:
             tela2.avisar = avisar
         ass2 = AssistenteQuiz(PageReader(ctx2), Falso(), tela2, intervalo=0.05, parar=threading.Event(),
                               responder=Responder(ctx2), finalizar=True, tentativas=True, curso=True,
-                              pausa_voltar=0.3, pausa_curso=2)
+                              pausa_voltar=pausa_voltar, pausa_curso=2)
+        rodar_com_usuario.ultimo = ass2  # para os ganchos mexerem no estado do assistente
         fim = time.monotonic() + segundos
         while time.monotonic() < fim and not ass2._curso_parado:
             ass2._passo()
@@ -356,5 +357,48 @@ with sync_playwright() as p:
     assert apos[0] == "12d" and apos[-1] == "2av" and apos.count("12d") == 1, curso2.visitas
     assert "Curso concluído: 2 unidade(s) conferida(s)." in tela2.avisos
     print("usuario volta para a U1 - Secao 2: a analise recomeca dali ok")
+
+    # D) O CASO DO LOG (10:24): o usuario clica numa secao durante o "Voltando ao curso em 3 s".
+    # O programa cancela a volta e NAO pode reabrir o quiz que estava (antes ele o reabria e o usuario
+    # precisava clicar de novo, duas vezes); a analise segue de onde o usuario clicou.
+    clique = {"feito": False}
+
+    def clicar_na_contagem(msg, pag2):
+        if not clique["feito"] and "Voltando ao curso em" in msg:
+            clique["feito"] = True
+            pag2.goto("http://quiz.test/course/view.php?id=1&u=2&s=2")
+
+    ass2, curso2, tela2 = rodar_com_usuario(gancho_aviso=clicar_na_contagem, pausa_voltar=3)
+    assert clique["feito"]
+    assert curso2.visitas == ["11d", "22d", "22a", "23d", "23a", "2av"], curso2.visitas  # nada de 11d/11a de novo
+    assert any("Começando de onde você abriu: U2 - Seção 2." == a for a in tela2.avisos), tela2.avisos
+    print("clique do usuario durante 'Voltando ao curso': respeitado de primeira, sem reabrir o quiz anterior ok")
+
+    # E) o usuario esta DENTRO do quiz (a analise ja estava trabalhando) e clica numa secao especifica
+    # depois de mais de 3 s fora das paginas do curso: tambem conta como escolha dele
+    clique = {"feito": False}
+
+    def clicar_depois_de_ficar_na_prova(msg, pag2):
+        if not clique["feito"] and "Voltando ao curso em" in msg:
+            clique["feito"] = True
+            # simula "ficou mais de TEMPO_FORA_DO_CURSO segundos numa prova": o programa ja esqueceu o
+            # endereco do curso (e qualquer marca de "fui eu"); o usuario entao clica numa secao
+            rodar_com_usuario.ultimo._url_curso = None
+            rodar_com_usuario.ultimo._nossa_navegacao_ate = 0.0
+            pag2.goto("http://quiz.test/course/view.php?id=1&u=2&s=3")
+
+    ass2, curso2, tela2 = rodar_com_usuario(gancho_aviso=clicar_depois_de_ficar_na_prova, pausa_voltar=3)
+    assert clique["feito"]
+    assert curso2.visitas == ["11d", "23d", "23a", "2av"], curso2.visitas
+    assert any("Começando de onde você abriu: U2 - Seção 3." == a for a in tela2.avisos), tela2.avisos
+    print("chegou numa secao especifica sem clique do programa, depois de ficar fora do curso: foi o usuario ok")
+
+    # F) a pagina INICIAL do curso (so o "id") depois de uma prova NAO conta como escolha do usuario:
+    # e so "onde o programa esta" (ele volta de uma prova e nada muda no roteiro)
+    from quizbot.assistente import _tem_alem_do_id
+    assert _tem_alem_do_id("http://quiz.test/course/view.php?id=1&u=2&s=3")
+    assert _tem_alem_do_id("https://www.avaeduc.com.br/course/view.php?id=5351&topic=84886")
+    assert not _tem_alem_do_id("https://www.avaeduc.com.br/course/view.php?id=5351")
+    print("pagina inicial do curso (so o id) nao conta como escolha; unidade/secao conta ok")
     navegador.close()
 print("TUDO OK")
