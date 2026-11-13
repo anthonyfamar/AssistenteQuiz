@@ -43,7 +43,7 @@ from quizbot.config import (
     URL_CDP,
 )
 from quizbot.janela import JanelaPresenter
-from quizbot.memoria import Memoria
+from quizbot.memoria import Memoria, RevisoesLidas
 from quizbot.page_reader import NavegadorFechado, PageReader
 from quizbot.presenter import Presenter
 from quizbot.responder import Responder
@@ -104,6 +104,8 @@ def trabalhar(
             memoria=memoria,
             tentativas=automatico,
             curso=automatico,
+            # Lembra entre uma execucao e outra quais revisoes ja foram lidas (nao abre de novo).
+            revisoes_lidas=RevisoesLidas(PASTA_MEMORIA / "revisoes-lidas.json"),
         )
         print(f"Conectado ao navegador. Assistente rodando (modo {'automatico' if automatico else 'so sugerir'}).")
         try:
