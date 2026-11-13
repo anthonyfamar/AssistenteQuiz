@@ -15,7 +15,15 @@ class Reader:
         # por padrao a pagina de resumo mostra tudo respondido (pode enviar)
         self.resumo = resumo if resumo is not None else ResumoTentativa((QuestaoDoResumo(1, True),))
         self.respondida = respondida
-    def ler_questao(self): return self.filas.pop(0) if self.filas else None
+        self.atual = None
+        self.proximo()  # a pagina do primeiro passo
+
+    def proximo(self):
+        # Como o navegador: a pagina fica a MESMA ate mudar (o assistente confere a questao mais de
+        # uma vez por passo: antes de marcar e antes de avancar).
+        self.atual = self.filas.pop(0) if self.filas else None
+
+    def ler_questao(self): return self.atual
     def ler_resumo(self): return self.resumo
     def questao_ja_respondida(self): return self.respondida
     def numero_da_questao(self): return None
@@ -49,8 +57,11 @@ Q2 = Question("b", ("x", "y"))
 
 def roda(filas, resp, finalizar=True, passos=None, **opcoes):
     p = Presenter()
-    a = A.AssistenteQuiz(Reader(filas, **opcoes), Solver(), p, responder=resp, finalizar=finalizar)
-    for _ in range(passos or len(filas) + 1):
+    leitor = Reader(filas, **opcoes)
+    a = A.AssistenteQuiz(leitor, Solver(), p, responder=resp, finalizar=finalizar)
+    for passo in range(passos or len(filas) + 1):
+        if passo:
+            leitor.proximo()  # a pagina muda entre um passo e o seguinte
         a._passo()
     return p, a
 
