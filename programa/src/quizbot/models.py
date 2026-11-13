@@ -20,7 +20,10 @@
 # Situacao   -> em que pe esta a PAGINA INICIAL do quiz (a das tentativas):
 #               SEM_TENTATIVA (botao de comecar), EM_ANDAMENTO (botao de continuar),
 #               PODE_REFAZER (botao de outra tentativa) ou ESGOTADO (sem mais tentativas).
-# Tentativa  -> uma linha da tabela de tentativas: numero, estado e nota (None se nao ha).
+# Tentativa  -> uma linha da tabela de tentativas: numero, estado e nota (None se nao ha). Traz
+#               tambem se a linha tem o link "Revisao" e o numero da tentativa no Moodle (o
+#               attempt= do endereco dele), para o programa saber qual revisao ainda nao leu.
+#               Esses dois ficam FORA da comparacao (compare=False): sao so para achar o link.
 # PainelQuiz -> a pagina inicial lida: a situacao, as tentativas e a nota maxima (a do
 #               cabecalho "Nota / 10,00"). Responde "acertou tudo?" e monta o resumo das
 #               notas: a MAIOR nota e a que vale, mesmo que a ultima tentativa seja pior.
@@ -30,7 +33,7 @@
 # QuestaoDoResumo / ResumoTentativa -> a pagina de RESUMO (antes de enviar): cada questao com o
 #               numero e se ja foi respondida. "faltam" lista os numeros sem resposta.
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from functools import cached_property
 
@@ -83,6 +86,8 @@ class Tentativa:
     numero: int | None
     estado: str
     nota: float | None
+    tem_revisao: bool = field(default=False, compare=False)
+    id_revisao: str | None = field(default=None, compare=False)
 
 
 @dataclass(frozen=True)
@@ -144,6 +149,7 @@ class PainelQuiz:
     situacao: Situacao
     tentativas: tuple[Tentativa, ...] = ()
     nota_maxima: float | None = None
+    quiz_id: str | None = field(default=None, compare=False)  # o "id=" do endereco desta pagina
 
     @property
     def _com_nota(self) -> tuple[Tentativa, ...]:
