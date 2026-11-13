@@ -8,6 +8,7 @@
 #                    Provedor sem chave ou sem modelo e pulado sem barulho.
 #                    OpenRouter so entra com modelo ":free" (para nao gastar).
 import os
+import re
 from collections.abc import Callable
 
 from dotenv import load_dotenv
@@ -45,8 +46,16 @@ def _criar(provedor: Provedor) -> list[ApiSolver]:
         print(f"[aviso] {provedor.nome}: {provedor.modelo_visao_env} precisa terminar em ':free'. Visao desligada.")
         modelo_visao = None
 
+    base_url = provedor.base_url
+    if provedor.conta_env:  # o endereco leva o ID da conta (Cloudflare)
+        conta = os.getenv(provedor.conta_env, "").strip()
+        if not re.fullmatch(r"[0-9a-fA-F]{32}", conta):
+            print(f"[aviso] {provedor.nome} ignorado: falta {provedor.conta_env} (o ID da conta, 32 letras e numeros).")
+            return []
+        base_url = base_url.format(conta=conta)
+
     client = OpenAI(
-        base_url=provedor.base_url,
+        base_url=base_url,
         api_key=chave,
         timeout=TIMEOUT_API,
         max_retries=0,
@@ -54,7 +63,8 @@ def _criar(provedor: Provedor) -> list[ApiSolver]:
     # Nome curto para a janela: "Gemini (Google)" vira "Gemini".
     apelido = provedor.rotulo.split(" (")[0] or provedor.nome
     fator = provedor.fator_de_espera
-    solvers = [ApiSolver(provedor.nome, client, modelo, modelo_visao, provedor.max_imagens, apelido, fator)]
+    limite = provedor.max_tokens
+    solvers = [ApiSolver(provedor.nome, client, modelo, modelo_visao, provedor.max_imagens, apelido, fator, limite)]
     for reserva in provedor.modelos_reserva:
         if reserva == modelo:
             continue
@@ -68,11 +78,14 @@ def _criar(provedor: Provedor) -> list[ApiSolver]:
                 provedor.max_imagens,
                 apelido,
                 fator,
+                limite,
             )
         )
     for reserva in provedor.reservas_so_texto:  # nao enxergam imagem: so respondem texto
         if reserva != modelo:
-            solvers.append(ApiSolver(provedor.nome, client, reserva, None, provedor.max_imagens, apelido, fator))
+            solvers.append(
+                ApiSolver(provedor.nome, client, reserva, None, provedor.max_imagens, apelido, fator, limite)
+            )
     return solvers
 
 
