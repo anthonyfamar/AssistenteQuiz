@@ -25,7 +25,14 @@
 #                      certo e errado e guarda na Memoria (certas e erradas). Isso vem
 #                      ANTES de ler a questao, para uma revisao nunca ser tratada como
 #                      questao. Com a revisao guardada em algum lugar (local ou nuvem),
-#                      aperta "Terminar revisao" (modo automatico).
+#                      aperta "Terminar revisao" (modo automatico) SE a revisao foi aberta pelo
+#                      programa (acabou de enviar, ou clicou em "Revisao" na tabela). Revisao que
+#                      o USUARIO abriu: guarda e deixa aberta (ele pode estar lendo).
+#                   9. na pagina INICIAL do quiz, antes de comecar outra tentativa (ou de voltar ao
+#                      curso), le a revisao de cada tentativa finalizada que ainda nao leu: clica no
+#                      link "Revisao" da tabela, guarda as certas e erradas e fecha. Assim a
+#                      tentativa nova ja descarta as alternativas erradas. Quem decide o que ja foi
+#                      lido e o attempt= do Moodle (ou o numero da linha, se o link nao o trouxer).
 #                   7. na pagina INICIAL do quiz (sem questao na tela), se as tentativas
 #                      automaticas estiverem ligadas, olha o painel: comeca ou continua a
 #                      tentativa, faz outra se nao acertou tudo, para se acertou tudo e,
@@ -40,11 +47,13 @@
 import threading
 import time
 from collections.abc import Callable
+from urllib.parse import parse_qs, urlparse
 from string import ascii_uppercase
 
 from quizbot.config import (
     ESPERA_CURTA_DA_IA,
     ESPERA_PELA_REVISAO,
+    ESPERA_PELA_REVISAO_ANTIGA,
     FATIA_DE_ESPERA,
     MAX_VISITAS_POR_QUESTAO,
     PAUSA_ANTES_DE_COMECAR_CURSO,
@@ -58,12 +67,17 @@ from quizbot.config import (
     TEMPO_PARA_LER_ESCOLHA,
 )
 from quizbot.curso import AbrirSecao, AbrirUnidade, Concluido, Parar, RoteiroDoCurso
-from quizbot.memoria import Memoria
+from quizbot.memoria import Memoria, RevisoesLidas
 from quizbot.models import PainelQuiz, Question, Situacao, Suggestion, Unidade
 from quizbot.page_reader import LeituraIncompleta, PageReader
 from quizbot.presenter import Presenter
 from quizbot.responder import Responder
 from quizbot.solvers import Solver, SolverError
+
+
+def _tem_alem_do_id(endereco: str) -> bool:
+    """O endereco do curso tem mais que o "id" (ex.: ...&topic=84886): e uma unidade/secao, nao a pagina inicial."""
+    return bool(set(parse_qs(urlparse(endereco).query)) - {"id"})
 
 
 class AssistenteQuiz:
@@ -81,6 +95,7 @@ class AssistenteQuiz:
         pausa_voltar: float = PAUSA_ANTES_DE_VOLTAR,
         curso: bool = False,
         pausa_curso: float = PAUSA_ANTES_DE_COMECAR_CURSO,
+        revisoes_lidas: RevisoesLidas | None = None,
     ) -> None:
         self._reader = reader
         self._solver = solver
@@ -123,6 +138,22 @@ class AssistenteQuiz:
         self._nossa_navegacao_ate = 0.0
         self._mudanca_vista_em: float | None = None
         self._fora_desde: float | None = None  # desde quando nao esta numa pagina do curso
+        # Revisoes de tentativas antigas (as que o programa nao fez ou nao guardou): so abre a
+        # revisao de uma tentativa que ainda nao leu, e essa lista fica salva entre uma execucao e outra
+        # (RevisoesLidas). As chaves sao o attempt= do Moodle (ou "id do quiz#numero" sem ele).
+        self._revisoes_lidas = revisoes_lidas if revisoes_lidas is not None else RevisoesLidas()
+        # Nao deu para abrir/ler: nao insiste ate fechar o programa; na proxima vez tenta de novo
+        # (nao entra na lista das lidas, porque nada foi guardado).
+        self._revisoes_puladas: set[str] = set()
+        self._abrimos_revisao: str | None = None  # a chave da revisao que NOS abrimos e ainda nao foi lida
+        self._abrimos_em = 0.0
+        self._lendo_revisao = False  # a pagina atual e uma revisao ja lida (para decidir uma vez so)
+        self._fechar_revisao = False  # quem abriu a revisao foi o programa? Entao ele a fecha
+        # Durante a conferencia das revisoes antigas a janela mostra UMA mensagem fixa. Cada aviso fica
+        # pelo menos SEGUNDOS_ALERTA na tela e os seguintes esperam na fila: um aviso por tentativa
+        # (e por etapa) faria a janela ficar muito atras do que o programa ja fez. O detalhe vai so
+        # para o registro.
+        self._conferindo = False
 
     def _esperar(self, segundos: float) -> bool:
         # Espera ate `segundos` ou ate pedirem para parar (True = pediram). Em fatias curtas, em que
@@ -144,6 +175,9 @@ class AssistenteQuiz:
         # (o usuario nunca fica sem a resposta nem sem o que fazer).
         if self._responder is None:
             return
+        if not self._na_mesma_questao(questao):  # o usuario ja foi para outra: a vontade dele vale
+            print("[usuario] a pagina mudou; nao marquei a resposta da questao anterior.")
+            return
         letra = ascii_uppercase[sugestao.indice]
         repetir = lambda: self._agir(sugestao, questao)  # noqa: E731
         if not self._marcar_com_calma(sugestao.indice):
@@ -154,12 +188,24 @@ class AssistenteQuiz:
             )
             return
         self._esperar(PAUSA_APOS_CLICAR)
+        if not self._na_mesma_questao(questao):  # mudou de questao no meio: nao empurra o usuario adiante
+            print("[usuario] a pagina mudou depois de marcar; nao avancei.")
+            return
         if not self._avancar_com_calma(questao):
             self._oferecer_repeticao(
                 f"Marquei a alternativa {letra}, mas não consegui avançar. Avance você mesmo ou tente de novo.",
                 repetir,
                 questao,
             )
+
+    def _na_mesma_questao(self, questao: Question) -> bool:
+        # A IA demora (ate dezenas de segundos) e o usuario pode clicar em outra questao nesse tempo.
+        # Antes de marcar ou avancar, confere se a pagina ainda mostra a questao da sugestao: marcar a
+        # resposta velha na questao nova (e avancar) desfaria o clique dele.
+        try:
+            return self._reader.ler_questao() == questao
+        except LeituraIncompleta:
+            return True  # nao deu para ler agora: segue como antes
 
     def _marcar_com_calma(self, indice: int) -> bool:
         # Marcar e seguro de repetir: so clica se a alternativa ainda nao estiver marcada.
@@ -232,6 +278,9 @@ class AssistenteQuiz:
                 questao,
             )
             return
+        if not self._na_mesma_questao(questao):  # o usuario foi para outra questao enquanto a IA pensava
+            print("[usuario] voce mudou de questao enquanto a IA respondia; descartei a sugestao antiga.")
+            return
         numero = self._reader.numero_da_questao()
         print(  # uma linha por questao: quem respondeu e o que escolheu (para conferir depois)
             f"[resposta] {f'questao {numero}: ' if numero is not None else ''}"
@@ -259,6 +308,7 @@ class AssistenteQuiz:
     def _vigiar_revisao(self) -> None:
         # Depois de enviar, a pagina de revisao deveria ser lida em segundos. Se passar do tempo,
         # nao deixa o usuario no escuro: registra o que a pagina mostra e avisa.
+        self._vigiar_revisao_aberta()
         if self._enviada_em is None or self._avisou_revisao or self._memoria is None:
             return
         passou = time.monotonic() - self._enviada_em
@@ -277,6 +327,77 @@ class AssistenteQuiz:
         chamar = getattr(self._presenter, "chamar_atencao", None)
         if chamar is not None:
             chamar()
+
+    def _vigiar_revisao_aberta(self) -> None:
+        # Clicamos em "Revisao" na tabela e, passado o tempo, a revisao nao foi lida (o clique nao abriu a
+        # pagina ou o programa nao reconhece a estrutura). Em vez de ficar parado: registra o que a
+        # pagina mostra, avisa, fecha a revisao (nada se perde: ela NAO conta como lida, entao e tentada
+        # de novo quando o programa abrir outra vez) e deixa o processo seguir. Isso so vale para
+        # revisoes de tentativas antigas; a revisao logo depois de ENVIAR continua nunca sendo fechada
+        # sem ser lida (veja _vigiar_revisao).
+        if self._abrimos_revisao is None or self._lendo_revisao:
+            return
+        passou = time.monotonic() - self._abrimos_em
+        if passou < ESPERA_PELA_REVISAO_ANTIGA:
+            return
+        chave = self._abrimos_revisao
+        self._revisoes_puladas.add(chave)
+        self._abrimos_revisao = None
+        diagnostico = getattr(self._reader, "diagnosticar_pagina", lambda: "?")()
+        print(f"[revisao] abri a revisao da tentativa {chave}, mas {int(passou)} s depois nao foi lida. Pagina: {diagnostico}")
+        estrutura = getattr(self._reader, "estrutura_da_revisao", lambda: "")()
+        if estrutura:
+            print(f"[revisao] estrutura da pagina (para o desenvolvedor):\n{estrutura}")
+        if self._responder is not None and self._responder.terminar_revisao():
+            self._presenter.avisar(
+                "Não consegui ler a revisão de uma tentativa antiga. Fechei a revisão e sigo; "
+                "tento ler de novo na próxima vez que o programa abrir."
+            )
+        else:
+            self._presenter.avisar(
+                "Não consegui ler a revisão de uma tentativa antiga e sigo sem ela. "
+                'Se a revisão está na tela, clique em "Terminar revisão" você mesmo.'
+            )
+
+    def _chave_da_tentativa(self, painel: PainelQuiz, tentativa) -> str:
+        # O numero que o Moodle da a tentativa (attempt=); sem ele, o id do quiz e o numero da linha.
+        return tentativa.id_revisao or f"{painel.quiz_id}#{tentativa.numero}"
+
+    def _ler_revisoes_pendentes(self, painel: PainelQuiz) -> bool:
+        # Antes de comecar outra tentativa (ou de deixar o quiz), le a revisao das tentativas ja
+        # finalizadas que este programa ainda nao leu: assim as certas e erradas ficam na memoria e a
+        # proxima tentativa ja descarta as erradas. A leitura e a de sempre (_registrar_revisao); aqui
+        # so se clica no link "Revisao" da tabela, uma tentativa por vez. True = esta agindo/esperando.
+        if self._responder is None or self._memoria is None:
+            return False
+        if painel.situacao not in (Situacao.PODE_REFAZER, Situacao.ESGOTADO):
+            self._conferindo = False
+            return False  # sem tentativa feita, ou o usuario esta no meio de uma: nao mexe
+        if self._abrimos_revisao is not None:
+            return True  # ja clicamos; espera a revisao abrir e ser lida (ou o tempo esgotar)
+        for tentativa in painel.tentativas:
+            if not tentativa.tem_revisao or tentativa.numero is None:
+                continue
+            chave = self._chave_da_tentativa(painel, tentativa)
+            if chave in self._revisoes_lidas or chave in self._revisoes_puladas:
+                continue
+            print(f"[revisao] tentativa {tentativa.numero} ainda nao lida por este programa: abrindo a revisao")
+            if not self._conferindo:  # UMA mensagem para todo o processo, nao uma por tentativa
+                self._conferindo = True
+                self._presenter.avisar("Conferindo as revisões das tentativas anteriores…")
+            if self._responder.abrir_revisao(tentativa.numero):
+                self._abrimos_revisao = chave
+                self._abrimos_em = time.monotonic()
+            else:
+                self._revisoes_puladas.add(chave)
+                print(f"[revisao] nao achei o link Revisao da tentativa {tentativa.numero}; sigo sem ela.")
+                self._avisar_uma_vez(
+                    f"Não achei o link «Revisão» da tentativa {tentativa.numero}; sigo sem ler essa revisão."
+                )
+                continue
+            return True
+        self._conferindo = False  # nao sobrou nenhuma: a conferencia acabou
+        return False
 
     def _resumo_completo(self) -> bool:
         # Antes de enviar (e o envio nao tem volta) confere a tabela do resumo: se alguma
@@ -330,11 +451,26 @@ class AssistenteQuiz:
         resultados = self._reader.ler_revisao()
         if not resultados:
             return False
+        primeira = not self._lendo_revisao
+        if primeira:
+            # Primeira leitura desta revisao: decide UMA vez quem a abriu. Foi o programa (acabou de enviar
+            # a tentativa ou clicou em "Revisao" na tabela)? Entao ele a fecha depois de guardar. Foi o
+            # usuario? Entao so guarda e deixa a revisao aberta: ele pode estar lendo.
+            self._lendo_revisao = True
+            self._fechar_revisao = self._enviada_em is not None or self._abrimos_revisao is not None
+            if not self._fechar_revisao:
+                print("[revisao] revisao aberta pelo usuario: vou guardar e deixar aberta.")
         self._enviada_em = None  # a revisao foi lida: nada a vigiar
         self._registrar_placar(resultados)
         inicio = time.monotonic()
         erradas, certas = self._memoria.registrar_revisao(resultados)
         demorou = time.monotonic() - inicio
+        if self._memoria.garantir_guardado():
+            # So conta como LIDA depois de guardada em algum lugar (se nao gravou, e tentada de novo).
+            numero_no_moodle = getattr(self._reader, "tentativa_em_revisao", lambda: None)()
+            for chave in (self._abrimos_revisao, numero_no_moodle):
+                if chave:
+                    self._revisoes_lidas.add(chave)
         if demorou > 3:  # a nuvem pode demorar; o registro mostra quanto, para achar o gargalo
             print(f"[memoria] gravar a revisao levou {demorou:.1f} s")
         if erradas or certas:
@@ -343,9 +479,14 @@ class AssistenteQuiz:
                 f"[revisao] {len(resultados)} questoes, {total_erradas} errada(s) | "
                 f"guardado agora: {certas} certa(s), {erradas} errada(s)"
             )
-            self._presenter.avisar(
-                f"Revisão lida: guardei {certas} certa(s) e {erradas} errada(s) na memória."
-            )
+            if not self._conferindo:  # na conferencia, so a mensagem fixa (o resultado fica no registro)
+                self._presenter.avisar(
+                    f"Revisão lida: guardei {certas} certa(s) e {erradas} errada(s) na memória."
+                )
+        elif primeira:  # nada novo: a memoria ja sabia tudo (e nunca repete uma pergunta)
+            print(f"[revisao] {len(resultados)} questoes, tudo isso ja estava salvo na memoria.")
+            if not self._conferindo:
+                self._presenter.avisar("Revisão conferida: tudo isso já estava salvo na memória.")
         return True
 
     def _registrar_placar(self, resultados: list) -> None:
@@ -380,7 +521,8 @@ class AssistenteQuiz:
             return
         if self._responder.terminar_revisao():
             self._revisao_fechada = True
-            self._presenter.avisar("Revisão terminada.")
+            if not self._conferindo:
+                self._presenter.avisar("Revisão terminada.")
         else:
             self._avisar_uma_vez('Não achei o botão "Terminar revisão". Clique você mesmo.')
 
@@ -416,7 +558,10 @@ class AssistenteQuiz:
             if self._fora_desde is None:
                 self._fora_desde = time.monotonic()
             elif time.monotonic() - self._fora_desde >= TEMPO_FORA_DO_CURSO:
+                # Esquece onde estava e qualquer "fui eu que cliquei" que sobrou: a chegada que
+                # aconteceu enquanto estava na prova ja terminou, o proximo clique e do usuario.
                 self._url_curso = None
+                self._nossa_navegacao_ate = 0.0
             return
         self._fora_desde = None
         if self._o_usuario_escolheu(menu):  # abriu uma unidade/secao: ja recomecou de la
@@ -453,6 +598,7 @@ class AssistenteQuiz:
             self._apos_clicar_no_curso(
                 self._responder.abrir_atividade(acao.nome),
                 f"Não achei '{acao.nome}' na {acao.unidade}. Clique você mesmo.",
+                outra_pagina_do_curso=False,  # abre um quiz: sai do curso
             )
 
     def _perguntar_outra_materia(self) -> None:
@@ -498,10 +644,16 @@ class AssistenteQuiz:
         agora = self._reader.endereco_do_curso()
         if agora is None:
             return False
-        if self._url_curso is None:  # primeira vez na pagina do curso: so guarda onde esta
-            self._url_curso = agora
-            return False
-        if agora == self._url_curso:
+        if self._url_curso is None:
+            # Primeira vez na pagina do curso (no comeco, ou depois de ficar numa prova): so guarda
+            # onde esta. Excecao: o programa JA vinha trabalhando neste curso, nao clicou em nada
+            # e chegou numa unidade/secao especifica (o endereco tem mais que o "id"): foi o usuario.
+            especifica = _tem_alem_do_id(agora)
+            if not (self._curso_iniciado and especifica and time.monotonic() >= self._nossa_navegacao_ate):
+                self._url_curso = agora
+                self._nossa_navegacao_ate = 0.0  # a chegada que o programa esperava aconteceu
+                return False
+        elif agora == self._url_curso:
             return False
         if time.monotonic() < self._nossa_navegacao_ate:  # fomos nos
             self._nossa_navegacao_ate = 0.0
@@ -524,11 +676,14 @@ class AssistenteQuiz:
         self._presenter.avisar(f"Começando de onde você abriu: {onde}.")
         return True
 
-    def _apos_clicar_no_curso(self, deu_certo: bool, aviso: str) -> None:
+    def _apos_clicar_no_curso(self, deu_certo: bool, aviso: str, outra_pagina_do_curso: bool = True) -> None:
         # Espera a pagina trocar antes de decidir de novo (evita clicar duas vezes). Se o clique
         # nao achou o link, avisa; o roteiro conta as tentativas e, passando do limite, para.
+        # So marca "fui eu" quando o clique leva a OUTRA pagina do curso (unidade/secao): e la que o
+        # _o_usuario_escolheu compara enderecos. Clique que abre um QUIZ sai do curso e nunca seria
+        # "consumido": a marca ficava ativa e engolia o proximo clique do USUARIO (o bug do log).
         self._curso_espera_ate = time.monotonic() + PAUSA_APOS_ABRIR_CURSO
-        if deu_certo:
+        if deu_certo and outra_pagina_do_curso:
             self._nossa_navegacao_ate = time.monotonic() + TEMPO_DA_NAVEGACAO_NOSSA
         if not deu_certo:
             self._avisar_uma_vez(aviso)
@@ -624,6 +779,8 @@ class AssistenteQuiz:
             notas = f", {painel.resumo_das_notas()}" if painel.tentativas else ""
             print(f"[painel] {painel.situacao.value}, {len(painel.tentativas)} tentativa(s){notas}")
 
+        if self._ler_revisoes_pendentes(painel):  # antes de outra tentativa ou de voltar ao curso
+            return
         if painel.situacao is Situacao.ESGOTADO:
             self._voltar_ao_curso(painel)
             return
@@ -648,8 +805,13 @@ class AssistenteQuiz:
             self._ultima = None
             self._enviada = False
             self._visitas.clear()
-            self._tentar_terminar_revisao()
+            if self._fechar_revisao:
+                self._tentar_terminar_revisao()
             return
+        # Saiu da revisao? Confere pelo endereco (uma leitura que falha por um instante nao conta).
+        if self._lendo_revisao and getattr(self._reader, "tentativa_em_revisao", lambda: None)() is None:
+            self._lendo_revisao = False
+            self._abrimos_revisao = None
         self._revisao_fechada = False
         self._avisou_pendente = False
         self._vigiar_revisao()
@@ -668,6 +830,7 @@ class AssistenteQuiz:
             self._cuidar_do_painel()
             self._cuidar_do_curso()
             return
+        self._conferindo = False  # ha questao na tela: nao esta conferindo revisoes
         if questao == self._ultima:
             return
 
