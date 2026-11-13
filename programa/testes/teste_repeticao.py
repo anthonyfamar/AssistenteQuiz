@@ -116,7 +116,9 @@ class LeitorQueAvanca(Leitor):
 
     def ler_questao(self):
         self.chamadas += 1
-        return Q1 if self.chamadas == 1 else Q2  # 1a leitura (do laco): Q1; depois a pagina mudou
+        # As 4 primeiras leituras (laco, depois da IA, antes de marcar e antes de avancar) veem a Q1;
+        # so na conferencia depois do "avancar" que falhou a pagina ja e outra (avancou sozinha).
+        return Q1 if self.chamadas <= 4 else Q2
 
 
 leitor = LeitorQueAvanca()
