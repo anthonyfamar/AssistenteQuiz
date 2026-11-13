@@ -12,6 +12,8 @@
 #                confirma na janelinha. Envia a tentativa e nao tem volta.
 #              - terminar_revisao(): na pagina de revisao, aperta "Terminar revisao"
 #                (volta para a pagina inicial do quiz).
+#              - abrir_revisao(numero): na pagina inicial do quiz, clica no link "Revisao" da
+#                linha da tentativa de numero N (para o programa ler e guardar as certas e erradas).
 #              - iniciar_tentativa(): na pagina inicial do quiz, aperta o botao que houver
 #                entre "Tentar responder o questionario agora", "Continuar a ultima
 #                tentativa" e "Fazer uma outra tentativa".
@@ -56,6 +58,7 @@ from quizbot.config import (
     TEXTO_BOTAO_OUTRA,
     TEXTO_BOTAO_TERMINAR_REVISAO,
     TEXTO_BOTAO_VOLTAR,
+    TEXTO_LINK_REVISAO,
 )
 
 
@@ -213,6 +216,27 @@ class Responder:
     def iniciar_tentativa(self) -> bool:
         textos = (TEXTO_BOTAO_CONTINUAR, TEXTO_BOTAO_COMECAR, TEXTO_BOTAO_OUTRA)
         return any(self._clicar_botao(texto) for texto in textos)
+
+    def abrir_revisao(self, numero: int) -> bool:
+        # Acha a linha da tabela de tentativas cuja primeira celula e o numero pedido e clica no link
+        # "Revisao" DELA (nunca no de outra linha). False se a tabela, a linha ou o link nao existirem.
+        for aba in self._contexto.pages:
+            for quadro in aba.frames:
+                try:
+                    linhas = quadro.locator(SELETOR_TABELA_TENTATIVAS).locator("tbody tr")
+                    for i in range(linhas.count()):
+                        linha = linhas.nth(i)
+                        primeira = linha.locator("td").first.inner_text(timeout=2000)
+                        if not re.fullmatch(rf"\s*{numero}\s*", primeira):
+                            continue
+                        link = linha.locator("a", has_text=re.compile(rf"^\s*{TEXTO_LINK_REVISAO}\s*$"))
+                        if link.count() != 1:
+                            return False
+                        _clicar(link)
+                        return True
+                except PlaywrightError:
+                    continue
+        return False
 
     def voltar_ao_curso(self) -> bool:
         # Sem mais tentativas o Moodle mostra o botao "Voltar ao curso". Com tentativas
