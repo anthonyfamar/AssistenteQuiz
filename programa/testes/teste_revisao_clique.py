@@ -77,13 +77,23 @@ with sync_playwright() as p:
 
     leitor, pres = Leitor(), Pres()
     a = AssistenteQuiz(leitor, None, pres, responder=Resp(), finalizar=True, memoria=Mem())
+    a._enviada_em = 1.0  # o programa acabou de enviar a tentativa: a revisao e dele (ele fecha)
     a._passo(); a._passo(); a._passo()
     assert len(cliques) == 1, cliques  # nao clica repetido
     leitor.revisao = False
     a._passo()
-    leitor.revisao = True  # outra revisao (2a tentativa)
+    leitor.revisao = True  # outra revisao (2a tentativa), tambem depois de o programa enviar
+    a._enviada_em = 1.0
     a._passo()
     assert len(cliques) == 2, cliques
     print("laco ok:", pres.msgs)
+
+    # revisao aberta pelo USUARIO (o programa nao enviou nem clicou): guarda, mas NAO fecha a pagina
+    cliques.clear()
+    leitor, mem, pres = Leitor(), Mem(), Pres()
+    b = AssistenteQuiz(leitor, None, pres, responder=Resp(), finalizar=True, memoria=mem)
+    b._passo(); b._passo(); b._passo()
+    assert mem.chamadas >= 1 and cliques == [], (mem.chamadas, cliques)  # guardou, nao clicou
+    print("revisao aberta pelo usuario: guardou e deixou aberta ok")
     navegador.close()
 print("TUDO OK")
