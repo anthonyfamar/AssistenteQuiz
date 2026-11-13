@@ -24,6 +24,7 @@
 # em outra. Por isso mostrar(), consultando() e avisar() so colocam o trabalho numa
 # fila; a janela esvazia a fila de tempos em tempos (veja executar()).
 import queue
+import re
 import threading
 import time
 import tkinter as tk
@@ -56,6 +57,7 @@ class JanelaPresenter(Presenter):
         self._ao_fechar = ao_fechar
         self._fila: queue.Queue[Callable[[], None]] = queue.Queue()
         self._pasta_log: Path = PASTA_LOGS
+        self._ja_posicionada = False  # a janela so vai para o canto na primeira vez (veja _posicionar)
 
         self._raiz = tk.Tk()
         self._raiz.title("AssistenteQuiz")
@@ -108,8 +110,24 @@ class JanelaPresenter(Presenter):
         self._esperando()
 
     def _posicionar(self, altura: int = ALTURA) -> None:
-        x = self._raiz.winfo_screenwidth() - LARGURA - MARGEM
-        y = self._raiz.winfo_screenheight() - altura - ALTURA_BARRA_TAREFAS
+        # So a PRIMEIRA vez a janela vai para o canto inferior direito. Depois ela e do usuario: ele
+        # pode arrasta-la para onde quiser e ela NAO volta sozinha. As trocas de tela so mudam a
+        # altura, mantendo x e y onde ele deixou (e so sobem o necessario se a janela crescer para
+        # fora da tela).
+        tela_h = self._raiz.winfo_screenheight()
+        if not self._ja_posicionada:
+            x = self._raiz.winfo_screenwidth() - LARGURA - MARGEM
+            y = tela_h - altura - ALTURA_BARRA_TAREFAS
+            self._ja_posicionada = True
+        else:
+            achado = re.match(r"\d+x\d+\+(-?\d+)\+(-?\d+)", self._raiz.geometry())
+            if achado is None:  # sem como ler a posicao: nao mexe nela
+                self._raiz.geometry(f"{LARGURA}x{altura}")
+                return
+            x, y = int(achado.group(1)), int(achado.group(2))
+            limite = tela_h - ALTURA_BARRA_TAREFAS
+            if y > 0 and y + altura > limite:  # cresceu para baixo da tela: sobe so o preciso
+                y = limite - altura
         self._raiz.geometry(f"{LARGURA}x{altura}+{x}+{max(y, 0)}")
 
     def _criar_rotulo(
