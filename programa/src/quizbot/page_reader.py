@@ -64,6 +64,7 @@ from quizbot.config import (
     SELETOR_TABELA_TENTATIVAS,
     SELETOR_TITULO_UNIDADE,
     TEXTO_BOTAO_COMECAR,
+    TEXTO_LINK_REVISAO,
     TEXTO_BOTAO_CONTINUAR,
     TEXTO_BOTAO_OUTRA,
     TEXTO_SEM_MAIS_TENTATIVAS,
@@ -89,11 +90,12 @@ _PADRAO_UNIDADE = re.compile(PADRAO_NOME_UNIDADE)
 _PREFIXO = re.compile(PADRAO_PREFIXO_ALTERNATIVA)
 _NUMERO = re.compile(r"\d+(?:[.,]\d+)?")
 _NOTA_MAXIMA = re.compile(r"/\s*(\d+(?:[.,]\d+)?)")
+_ATTEMPT = re.compile(r"[?&]attempt=(\d+)")  # o numero da tentativa no endereco da revisao
 
 # Le so o TEXTO da tabela de tentativas: os cabecalhos e, para cada linha, o texto das celulas.
 # Do "Estado" tira o trecho dos detalhes (a data de envio), numa copia solta na memoria.
 _JS_TABELA = """
-tabela => {
+(tabela, textoLink) => {
     const texto = el => {
         const copia = el.cloneNode(true);
         copia.querySelectorAll('.statedetails').forEach(e => e.remove());
@@ -104,6 +106,12 @@ tabela => {
         linhas: Array.from(tabela.querySelectorAll('tbody tr')).map(
             tr => Array.from(tr.querySelectorAll('td')).map(texto)
         ),
+        // Por linha: o endereco do link "Revisao" (texto vazio se o link nao tem endereco) ou null
+        // se a linha nao tem o link. So le; nada e clicado aqui.
+        revisoes: Array.from(tabela.querySelectorAll('tbody tr')).map(tr => {
+            const a = Array.from(tr.querySelectorAll('a')).find(x => x.textContent.trim() === textoLink);
+            return a ? (a.getAttribute('href') || '') : null;
+        }),
     };
 }
 """
@@ -193,12 +201,21 @@ def _ler_tabela(dados: dict) -> tuple[tuple[Tentativa, ...], float | None]:
     def celula(linha: list[str], coluna: int | None) -> str:
         return linha[coluna] if coluna is not None and coluna < len(linha) else ""
 
+    revisoes = dados.get("revisoes") or []
     tentativas = []
-    for linha in dados["linhas"]:
+    for i, linha in enumerate(dados["linhas"]):
         numero = _numero(celula(linha, col_numero))
         estado = celula(linha, col_estado).split("\n")[0].strip()  # "Finalizada" (sem a data)
+        endereco = revisoes[i] if i < len(revisoes) else None  # None = a linha nao tem o link "Revisao"
+        achado = _ATTEMPT.search(endereco or "")
         tentativas.append(
-            Tentativa(int(numero) if numero is not None else None, estado, _numero(celula(linha, col_nota)))
+            Tentativa(
+                int(numero) if numero is not None else None,
+                estado,
+                _numero(celula(linha, col_nota)),
+                tem_revisao=endereco is not None,
+                id_revisao=achado.group(1) if achado else None,
+            )
         )
     return tuple(tentativas), nota_maxima
 
@@ -537,8 +554,9 @@ class PageReader:
         nota_maxima = None
         tabela = quadro.locator(SELETOR_TABELA_TENTATIVAS)
         if tabela.count() == 1:
-            tentativas, nota_maxima = _ler_tabela(tabela.evaluate(_JS_TABELA, timeout=2000))
-        return PainelQuiz(situacao, tentativas, nota_maxima)
+            tentativas, nota_maxima = _ler_tabela(tabela.evaluate(_JS_TABELA, TEXTO_LINK_REVISAO, timeout=2000))
+        quiz_id = (parse_qs(urlparse(quadro.url).query).get("id") or [None])[0]
+        return PainelQuiz(situacao, tentativas, nota_maxima, quiz_id)
 
     def ler_painel(self) -> PainelQuiz | None:
         for quadro in self._quadros():
@@ -549,6 +567,19 @@ class PageReader:
                 continue
             if painel is not None:
                 return painel
+        return None
+
+    def tentativa_em_revisao(self) -> str | None:
+        # O numero da tentativa (attempt=) da pagina de revisao aberta, ou None. Serve para saber QUAL
+        # revisao foi lida, e assim nao abrir de novo a mesma pela tabela de tentativas.
+        for quadro in self._quadros():
+            try:
+                if "review.php" in quadro.url:
+                    achado = _ATTEMPT.search(quadro.url)
+                    if achado:
+                        return achado.group(1)
+            except PlaywrightError:
+                self._checar_conexao()
         return None
 
     def ler_questao(self) -> Question | None:
