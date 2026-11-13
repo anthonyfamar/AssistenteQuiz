@@ -96,7 +96,7 @@ PAUSA_APOS_ABRIR_CURSO = 4.0
 # mudanca de pagina foi dele ou do programa: depois de um clique (ou da volta de um quiz) o
 # programa considera "dele" a PRIMEIRA mudanca de pagina ate este tempo (s); e, quando a
 # pagina nova nao deixa ver onde esta (ainda carregando), insiste por este tempo (s).
-TEMPO_DA_NAVEGACAO_NOSSA = 15.0
+TEMPO_DA_NAVEGACAO_NOSSA = 10.0
 TEMPO_PARA_LER_ESCOLHA = 10.0
 # Fora das paginas do curso por este tempo (s), o proximo endereco do curso deixa de contar como
 # escolha do usuario (so passa a ser "onde esta").
@@ -118,6 +118,9 @@ TEXTO_BOTAO_CONTINUAR = "Continuar a última tentativa"  # saiu no meio e abriu 
 TEXTO_BOTAO_OUTRA = "Fazer uma outra tentativa"
 TEXTO_SEM_MAIS_TENTATIVAS = "Não são permitidas outras tentativas"
 TEXTO_BOTAO_VOLTAR = "Voltar ao curso"
+# Link da ultima coluna da tabela de tentativas ("Analise as suas respostas a esta tentativa"):
+# abre a revisao daquela tentativa. Achado pelo texto, dentro da linha da tentativa.
+TEXTO_LINK_REVISAO = "Revisão"
 # Ao acabar as tentativas (ou tirar a nota maxima), quantos segundos mostrar a nota antes
 # de voltar ao curso.
 PAUSA_ANTES_DE_VOLTAR = 5.0
@@ -145,6 +148,9 @@ FATIA_DE_ESPERA = 0.25
 # Depois de enviar a tentativa, a revisao deve ser lida em segundos. Passando deste tempo (s) sem
 # ler, o programa registra o que a pagina mostra e avisa o usuario (nao fica mudo).
 ESPERA_PELA_REVISAO = 20.0
+# Revisao de tentativa ANTIGA aberta pelo programa (pela tabela de tentativas): se nao for lida neste
+# tempo (s), o programa avisa, fecha a revisao e segue o processo em vez de ficar parado.
+ESPERA_PELA_REVISAO_ANTIGA = 10.0
 # Como o programa clica: True = DENTRO da pagina (el.click()), que funciona com o navegador
 # MINIMIZADO; False = clique de mouse simulado do Playwright, que depende de o navegador desenhar a
 # janela (minimizado, o clique funciona mas a confirmacao demora e vira falso erro).
@@ -227,6 +233,12 @@ class Provedor:
     reservas_so_texto: tuple[str, ...] = ()
     # Modelos que "pensam" antes de responder levam uns 10 s: multiplica o tempo de espera deles.
     fator_de_espera: float = 1.0
+    # Provedor cujo endereco leva o ID da conta (Cloudflare): base_url traz "{conta}" e conta_env e o
+    # NOME da variavel do .env que guarda esse ID. Vazio = o endereco e o mesmo para todo mundo.
+    conta_env: str = ""
+    # Limite de tokens da resposta. Modelos que "pensam" (gpt-oss) gastam parte dele raciocinando;
+    # com o limite padrao do provedor a resposta saia vazia em metade das questoes dificeis.
+    max_tokens: int | None = None
 
 
 # modelo_visao_env = modelo usado nas questoes COM imagem (precisa enxergar). Se ficar
@@ -270,6 +282,32 @@ PROVEDORES = {
         modelos_reserva=("qwen/qwen3.8-27b",),
         reservas_so_texto=("openai/gpt-oss-20b",),
     ),
+    "cloudflare": Provedor(
+        "cloudflare",
+        "https://api.cloudflare.com/client/v4/accounts/{conta}/ai/v1",
+        "CLOUDFLARE_API_KEY",
+        "CLOUDFLARE_MODEL",
+        "CLOUDFLARE_MODEL_VISAO",
+        rotulo="Cloudflare (Workers AI)",
+        dica=(
+            "Opcional (reserva). Gratuito, sem cartao: 10.000 'neurons' por dia (umas 250 questoes "
+            "com o modelo principal), zerando as 21h no horario de Brasilia. Precisa do ID da conta "
+            "e de um token de API com permissao para Workers AI. NAO assine o plano Workers Paid."
+        ),
+        url_chave="https://dash.cloudflare.com/profile/api-tokens",
+        # Medido em 11/2026 com a conta gratuita, em 4 questoes de gabarito conhecido (3 vezes cada):
+        # gpt-oss-120b 12 de 12 (so texto, ~6 s, ~40 neurons por questao); qwen3.8-27b 11 de 11
+        # respondidas (enxerga imagem, mas ~11-23 s e ~130 neurons); gemma-4-26b enxerga imagem
+        # (~4 s, ~10 neurons) mas as vezes gasta o limite so pensando; llama-4-scout errou a tabela.
+        # Reduzir o esforco de raciocinio do gpt-oss piorou (11 de 12) e nao economizou tokens.
+        modelo_sugerido="@cf/openai/gpt-oss-120b",
+        modelo_visao_sugerido="@cf/google/gemma-4-26b-a4b-it",
+        modelos_reserva=("@cf/qwen/qwen3.8-27b",),
+        reservas_so_texto=("@cf/openai/gpt-oss-20b",),
+        conta_env="CLOUDFLARE_ACCOUNT_ID",
+        max_tokens=4000,
+        fator_de_espera=2.0,
+    ),
     "openrouter": Provedor(
         "openrouter",
         "https://openrouter.ai/api/v1",
@@ -307,7 +345,7 @@ PROVEDORES_REMOVIDOS = {
     "mistral": "o plano gratuito nao inclui a API: criar chave exige ativar cobranca (pay-as-you-go), segundo a documentacao oficial",
 }
 
-ORDEM_PADRAO = "gemini,groq,openrouter"
+ORDEM_PADRAO = "gemini,groq,cloudflare,openrouter"
 MAX_BYTES_IMAGEM = 4 * 1024 * 1024
 # Quanto esperar (segundos) por UMA resposta antes de desistir e passar para o proximo modelo.
 # Erro claro ("fora do ar", 503...) nao espera nada: passa para o proximo na hora.
