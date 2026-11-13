@@ -20,20 +20,20 @@ from quizbot.config import ORDEM_PADRAO, PROVEDORES, PROVEDORES_REMOVIDOS
 from quizbot.solvers import fabrica
 
 # ---------- catalogo ----------
-assert set(PROVEDORES) == {"gemini", "groq", "openrouter"}, list(PROVEDORES)
+assert set(PROVEDORES) == {"gemini", "groq", "cloudflare", "openrouter"}, list(PROVEDORES)
 assert set(PROVEDORES_REMOVIDOS) == {"ollama-cloud", "mistral"}
 assert not set(PROVEDORES) & set(PROVEDORES_REMOVIDOS)
 assert "402" in PROVEDORES_REMOVIDOS["ollama-cloud"] and "API" in PROVEDORES_REMOVIDOS["mistral"]
-assert ORDEM_PADRAO == "gemini,groq,openrouter"
+assert ORDEM_PADRAO == "gemini,groq,cloudflare,openrouter"
 assert set(ORDEM_PADRAO.split(",")) == set(PROVEDORES), (ORDEM_PADRAO, list(PROVEDORES))
-print("catalogo: so Gemini, Groq e OpenRouter; Ollama e Mistral retirados (com o motivo) ok")
+print("catalogo: so Gemini, Groq, Cloudflare e OpenRouter; Ollama e Mistral retirados (com o motivo) ok")
 
 # ---------- fabrica ----------
 tmp = pathlib.Path(tempfile.mkdtemp()) / "vazio.env"
 tmp.write_text("")
 fabrica.ARQUIVO_ENV = tmp  # nenhum .env de verdade e lido neste teste
 for k in list(os.environ):
-    if k.startswith(("GEMINI_", "GROQ_", "OPENROUTER_", "MISTRAL_", "OLLAMA_")) or k == "ORDEM_PROVEDORES":
+    if k.startswith(("GEMINI_", "GROQ_", "OPENROUTER_", "CLOUDFLARE_", "MISTRAL_", "OLLAMA_")) or k == "ORDEM_PROVEDORES":
         del os.environ[k]
 os.environ.update({
     "GROQ_API_KEY": "chave-groq-falsa-1234567", "GROQ_MODEL": "openai/gpt-oss-120b",
