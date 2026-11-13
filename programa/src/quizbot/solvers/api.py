@@ -1,6 +1,6 @@
 # API - solver que usa uma IA por API compativel com OpenAI.
 #
-# ApiSolver -> um provedor (Gemini, Groq, Mistral ou OpenRouter): recebe o cliente
+# ApiSolver -> um provedor (Gemini, Groq, Cloudflare ou OpenRouter): recebe o cliente
 #              ja configurado (base_url + chave) e o modelo. Pede a resposta em JSON,
 #              valida e devolve a Suggestion. Qualquer falha vira SolverError.
 #              Questao com imagem usa o modelo_visao (um modelo que enxerga) e manda as
@@ -10,6 +10,7 @@ import json
 import re
 import time
 from dataclasses import replace
+from datetime import datetime, timedelta, timezone
 
 from openai import APIConnectionError, APITimeoutError, OpenAI, OpenAIError
 
@@ -156,6 +157,13 @@ def espera_da_cota(erro: OpenAIError) -> float | None:
         instante = float(achado.group(1))
         instante = instante / 1000 if instante > 1e11 else instante  # milissegundos ou segundos
         return max(instante - time.time(), 0.0)
+    # Cloudflare: a cota gratis ("10,000 neurons per day") zera todo dia as 00:00 UTC (documentacao
+    # oficial). A mensagem exata do erro nao foi vista (a cota nao foi esgotada nos testes): basta
+    # citar "neurons" ou o codigo 4006.
+    if re.search(r"neurons?|\b4006\b", texto, re.IGNORECASE):
+        agora = datetime.now(timezone.utc)
+        meia_noite = (agora + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        return (meia_noite - agora).total_seconds()
     return None
 
 
@@ -187,7 +195,9 @@ class ApiSolver(Solver):
         max_imagens: int = 5,
         apelido: str | None = None,
         fator_de_espera: float = 1.0,
+        max_tokens: int | None = None,
     ) -> None:
+        self._max_tokens = max_tokens
         self._nome = nome
         self._apelido = apelido or nome  # nome para a janela: "Gemini", "Groq"...
         self._client = client
@@ -252,6 +262,8 @@ class ApiSolver(Solver):
         inicio = time.monotonic()
         # Sem limite proprio, vale o do cliente (TIMEOUT_API, definido na fabrica).
         extra = {} if timeout is None else {"timeout": timeout}
+        if self._max_tokens is not None:
+            extra["max_tokens"] = self._max_tokens
         try:
             resposta = self._client.chat.completions.create(
                 model=modelo,
